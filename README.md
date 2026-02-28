@@ -18,6 +18,17 @@ config = AxmeClientConfig(
 
 with AxmeClient(config) as client:
     print(client.health())
+    result = client.create_intent(
+        {
+            "intent_type": "notify.message.v1",
+            "from_agent": "agent://example/sender",
+            "to_agent": "agent://example/receiver",
+            "payload": {"text": "hello"},
+        },
+        correlation_id="11111111-1111-1111-1111-111111111111",
+        idempotency_key="create-intent-001",
+    )
+    print(result)
 ```
 
 ## Development

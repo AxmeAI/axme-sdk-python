@@ -44,8 +44,24 @@ class AxmeClient:
             raise AxmeHttpError(response.status_code, response.text)
         return response.json()
 
-    def create_intent(self, payload: dict[str, Any]) -> dict[str, Any]:
-        response = self._http.post("/v1/intents", json=payload)
+    def create_intent(
+        self,
+        payload: dict[str, Any],
+        *,
+        correlation_id: str,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        request_payload = dict(payload)
+        existing_correlation_id = request_payload.get("correlation_id")
+        if existing_correlation_id is not None and existing_correlation_id != correlation_id:
+            raise ValueError("payload correlation_id must match correlation_id argument")
+        request_payload["correlation_id"] = correlation_id
+
+        headers: dict[str, str] | None = None
+        if idempotency_key is not None:
+            headers = {"Idempotency-Key": idempotency_key}
+
+        response = self._http.post("/v1/intents", json=request_payload, headers=headers)
         if response.status_code >= 400:
             raise AxmeHttpError(response.status_code, response.text)
         return response.json()
