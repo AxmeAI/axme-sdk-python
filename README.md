@@ -14,10 +14,12 @@ from axme_sdk import AxmeClient, AxmeClientConfig
 config = AxmeClientConfig(
     base_url="https://gateway.example.com",
     api_key="YOUR_API_KEY",
+    max_retries=2,
+    retry_backoff_seconds=0.2,
 )
 
 with AxmeClient(config) as client:
-    print(client.health())
+    print(client.health(trace_id="trace-quickstart-001"))
     result = client.create_intent(
         {
             "intent_type": "notify.message.v1",
@@ -29,7 +31,7 @@ with AxmeClient(config) as client:
         idempotency_key="create-intent-001",
     )
     print(result)
-    inbox = client.list_inbox(owner_agent="agent://example/receiver")
+    inbox = client.list_inbox(owner_agent="agent://example/receiver", trace_id="trace-inbox-001")
     print(inbox)
     changes = client.list_inbox_changes(owner_agent="agent://example/receiver", limit=50)
     print(changes["next_cursor"], changes["has_more"])

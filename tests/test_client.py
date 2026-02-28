@@ -13,8 +13,21 @@ def _transport(handler):
     return httpx.MockTransport(handler)
 
 
-def _client(handler, api_key: str = "token") -> AxmeClient:
-    cfg = AxmeClientConfig(base_url="https://api.axme.test", api_key=api_key)
+def _client(
+    handler,
+    api_key: str = "token",
+    *,
+    max_retries: int = 2,
+    retry_backoff_seconds: float = 0.0,
+    auto_trace_id: bool = True,
+) -> AxmeClient:
+    cfg = AxmeClientConfig(
+        base_url="https://api.axme.test",
+        api_key=api_key,
+        max_retries=max_retries,
+        retry_backoff_seconds=retry_backoff_seconds,
+        auto_trace_id=auto_trace_id,
+    )
     http_client = httpx.Client(
         transport=_transport(handler),
         base_url=cfg.base_url,
@@ -72,6 +85,15 @@ def test_health_success() -> None:
 
     client = _client(handler)
     assert client.health() == {"ok": True}
+
+
+def test_health_propagates_trace_id_header() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers.get("x-trace-id") == "trace-123"
+        return httpx.Response(200, json={"ok": True})
+
+    client = _client(handler, auto_trace_id=False)
+    assert client.health(trace_id="trace-123") == {"ok": True}
 
 
 def test_create_intent_success() -> None:
@@ -229,7 +251,7 @@ def test_client_maps_rate_limit_error_with_retry_after() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, json={"message": "too many"}, headers={"Retry-After": "30"})
 
-    client = _client(handler)
+    client = _client(handler, max_retries=0)
     with pytest.raises(AxmeRateLimitError) as exc_info:
         client.list_inbox()
     assert exc_info.value.retry_after == 30
@@ -346,3 +368,57 @@ def test_replay_webhook_event_success() -> None:
 
     client = _client(handler)
     assert client.replay_webhook_event(event_id, owner_agent="agent://owner")["event_id"] == event_id
+
+
+def test_retries_retryable_get_on_transient_server_error() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(500, json={"error": "temporary"})
+        return httpx.Response(200, json={"ok": True, "threads": []})
+
+    client = _client(handler)
+    assert client.list_inbox(owner_agent="agent://owner") == {"ok": True, "threads": []}
+    assert attempts == 2
+
+
+def test_retries_post_when_idempotency_key_is_present() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(500, json={"error": "temporary"})
+        return httpx.Response(200, json={"intent_id": "it_123"})
+
+    client = _client(handler)
+    assert (
+        client.create_intent(
+            {"intent_type": "notify.message.v1", "to_agent": "agent://x", "from_agent": "agent://y", "payload": {}},
+            correlation_id="11111111-1111-1111-1111-111111111111",
+            idempotency_key="idem-retry",
+        )
+        == {"intent_id": "it_123"}
+    )
+    assert attempts == 2
+
+
+def test_does_not_retry_post_without_idempotency_key() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(500, json={"error": "temporary"})
+
+    client = _client(handler)
+    with pytest.raises(AxmeHttpError):
+        client.create_intent(
+            {"intent_type": "notify.message.v1", "to_agent": "agent://x", "from_agent": "agent://y", "payload": {}},
+            correlation_id="11111111-1111-1111-1111-111111111111",
+        )
+    assert attempts == 1
