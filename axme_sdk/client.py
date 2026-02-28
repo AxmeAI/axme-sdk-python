@@ -121,6 +121,46 @@ class AxmeClient:
         )
         return self._parse_json_response(response)
 
+    def upsert_webhook_subscription(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        headers: dict[str, str] | None = None
+        if idempotency_key is not None:
+            headers = {"Idempotency-Key": idempotency_key}
+        response = self._http.post("/v1/webhooks/subscriptions", json=payload, headers=headers)
+        return self._parse_json_response(response)
+
+    def list_webhook_subscriptions(self, *, owner_agent: str | None = None) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        response = self._http.get("/v1/webhooks/subscriptions", params=params)
+        return self._parse_json_response(response)
+
+    def delete_webhook_subscription(self, subscription_id: str, *, owner_agent: str | None = None) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        response = self._http.delete(f"/v1/webhooks/subscriptions/{subscription_id}", params=params)
+        return self._parse_json_response(response)
+
+    def publish_webhook_event(self, payload: dict[str, Any], *, owner_agent: str | None = None) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        response = self._http.post("/v1/webhooks/events", params=params, json=payload)
+        return self._parse_json_response(response)
+
+    def replay_webhook_event(self, event_id: str, *, owner_agent: str | None = None) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        response = self._http.post(f"/v1/webhooks/events/{event_id}/replay", params=params)
+        return self._parse_json_response(response)
+
     def _parse_json_response(self, response: httpx.Response) -> dict[str, Any]:
         if response.status_code >= 400:
             self._raise_http_error(response)
