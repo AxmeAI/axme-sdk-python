@@ -40,6 +40,19 @@ with AxmeClient(config) as client:
         idempotency_key="reply-001",
     )
     print(replied)
+    subscription = client.upsert_webhook_subscription(
+        {
+            "callback_url": "https://integrator.example/webhooks/axme",
+            "event_types": ["inbox.thread_created"],
+            "active": True,
+        }
+    )
+    print(subscription)
+    events = client.publish_webhook_event(
+        {"event_type": "inbox.thread_created", "source": "sdk-example", "payload": {"thread_id": "t-1"}},
+        owner_agent="agent://example/receiver",
+    )
+    print(events["event_id"])
 ```
 
 ## Development

@@ -48,6 +48,21 @@ def _thread_payload() -> dict[str, object]:
     }
 
 
+def _webhook_subscription_payload() -> dict[str, object]:
+    return {
+        "subscription_id": "44444444-4444-4444-8444-444444444444",
+        "owner_agent": "agent://owner",
+        "callback_url": "https://integrator.example/webhooks/axme",
+        "event_types": ["inbox.thread_created"],
+        "active": True,
+        "description": "sdk-test",
+        "created_at": "2026-02-28T00:00:00Z",
+        "updated_at": "2026-02-28T00:00:01Z",
+        "revoked_at": None,
+        "secret_hint": "****hint",
+    }
+
+
 def test_health_success() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
@@ -220,3 +235,114 @@ def test_client_maps_rate_limit_error_with_retry_after() -> None:
     assert exc_info.value.retry_after == 30
     assert isinstance(exc_info.value.body, dict)
     assert exc_info.value.body["message"] == "too many"
+
+
+def test_upsert_webhook_subscription_success() -> None:
+    subscription = _webhook_subscription_payload()
+    request_payload = {
+        "callback_url": "https://integrator.example/webhooks/axme",
+        "event_types": ["inbox.thread_created"],
+        "active": True,
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/webhooks/subscriptions"
+        assert request.headers["idempotency-key"] == "wh-1"
+        assert request.read() == b'{"callback_url":"https://integrator.example/webhooks/axme","event_types":["inbox.thread_created"],"active":true}'
+        return httpx.Response(200, json={"ok": True, "subscription": subscription})
+
+    client = _client(handler)
+    assert client.upsert_webhook_subscription(request_payload, idempotency_key="wh-1") == {
+        "ok": True,
+        "subscription": subscription,
+    }
+
+
+def test_list_webhook_subscriptions_success() -> None:
+    subscription = _webhook_subscription_payload()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/webhooks/subscriptions"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        return httpx.Response(200, json={"ok": True, "subscriptions": [subscription]})
+
+    client = _client(handler)
+    assert client.list_webhook_subscriptions(owner_agent="agent://owner") == {
+        "ok": True,
+        "subscriptions": [subscription],
+    }
+
+
+def test_delete_webhook_subscription_success() -> None:
+    subscription_id = "44444444-4444-4444-8444-444444444444"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "DELETE"
+        assert request.url.path == f"/v1/webhooks/subscriptions/{subscription_id}"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        return httpx.Response(200, json={"ok": True, "subscription_id": subscription_id, "revoked_at": "2026-02-28T00:00:03Z"})
+
+    client = _client(handler)
+    assert client.delete_webhook_subscription(subscription_id, owner_agent="agent://owner") == {
+        "ok": True,
+        "subscription_id": subscription_id,
+        "revoked_at": "2026-02-28T00:00:03Z",
+    }
+
+
+def test_publish_webhook_event_success() -> None:
+    event_id = "33333333-3333-4333-8333-333333333333"
+    request_payload = {"event_type": "inbox.thread_created", "source": "sdk-test", "payload": {"thread_id": "t-1"}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/webhooks/events"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "accepted_at": "2026-02-28T00:00:01Z",
+                "event_type": "inbox.thread_created",
+                "source": "sdk-test",
+                "owner_agent": "agent://owner",
+                "event_id": event_id,
+                "queued_deliveries": 1,
+                "processed_deliveries": 1,
+                "delivered": 1,
+                "pending": 0,
+                "dead_lettered": 0,
+            },
+        )
+
+    client = _client(handler)
+    assert client.publish_webhook_event(request_payload, owner_agent="agent://owner")["event_id"] == event_id
+
+
+def test_replay_webhook_event_success() -> None:
+    event_id = "33333333-3333-4333-8333-333333333333"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/webhooks/events/{event_id}/replay"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "event_id": event_id,
+                "owner_agent": "agent://owner",
+                "event_type": "inbox.thread_created",
+                "queued_deliveries": 1,
+                "processed_deliveries": 1,
+                "delivered": 1,
+                "pending": 0,
+                "dead_lettered": 0,
+                "replayed_at": "2026-02-28T00:00:02Z",
+            },
+        )
+
+    client = _client(handler)
+    assert client.replay_webhook_event(event_id, owner_agent="agent://owner")["event_id"] == event_id
