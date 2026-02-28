@@ -65,3 +65,45 @@ class AxmeClient:
         if response.status_code >= 400:
             raise AxmeHttpError(response.status_code, response.text)
         return response.json()
+
+    def list_inbox(self, *, owner_agent: str | None = None) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        response = self._http.get("/v1/inbox", params=params)
+        if response.status_code >= 400:
+            raise AxmeHttpError(response.status_code, response.text)
+        return response.json()
+
+    def get_inbox_thread(self, thread_id: str, *, owner_agent: str | None = None) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        response = self._http.get(f"/v1/inbox/{thread_id}", params=params)
+        if response.status_code >= 400:
+            raise AxmeHttpError(response.status_code, response.text)
+        return response.json()
+
+    def reply_inbox_thread(
+        self,
+        thread_id: str,
+        *,
+        message: str,
+        owner_agent: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        headers: dict[str, str] | None = None
+        if idempotency_key is not None:
+            headers = {"Idempotency-Key": idempotency_key}
+        response = self._http.post(
+            f"/v1/inbox/{thread_id}/reply",
+            params=params,
+            json={"message": message},
+            headers=headers,
+        )
+        if response.status_code >= 400:
+            raise AxmeHttpError(response.status_code, response.text)
+        return response.json()
