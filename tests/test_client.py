@@ -278,6 +278,92 @@ def test_get_capabilities_success() -> None:
     assert client.get_capabilities()["ok"] is True
 
 
+def test_create_invite_success() -> None:
+    token = "invite-token-0001"
+    payload = {"owner_agent": "agent://owner", "recipient_hint": "receiver", "ttl_seconds": 3600}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/invites/create"
+        assert request.headers["idempotency-key"] == "invite-create-1"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "token": token,
+                "invite_url": f"https://invite.example/{token}",
+                "owner_agent": "agent://owner",
+                "recipient_hint": "receiver",
+                "status": "pending",
+                "created_at": "2026-02-28T00:00:00Z",
+                "expires_at": "2026-03-01T00:00:00Z",
+            },
+        )
+
+    client = _client(handler)
+    assert client.create_invite(payload, idempotency_key="invite-create-1")["token"] == token
+
+
+def test_get_invite_success() -> None:
+    token = "invite-token-0002"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/invites/{token}"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "token": token,
+                "owner_agent": "agent://owner",
+                "recipient_hint": "receiver",
+                "status": "pending",
+                "created_at": "2026-02-28T00:00:00Z",
+                "expires_at": "2026-03-01T00:00:00Z",
+                "accepted_at": None,
+                "accepted_owner_agent": None,
+                "nick": None,
+                "public_address": None,
+            },
+        )
+
+    client = _client(handler)
+    assert client.get_invite(token)["status"] == "pending"
+
+
+def test_accept_invite_success() -> None:
+    token = "invite-token-0003"
+    payload = {"nick": "@Invite.User", "display_name": "Invite User"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/invites/{token}/accept"
+        assert request.headers["idempotency-key"] == "invite-accept-1"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "token": token,
+                "status": "accepted",
+                "invite_owner_agent": "agent://owner",
+                "user_id": "66666666-6666-4666-8666-666666666666",
+                "owner_agent": "agent://accepted",
+                "nick": "@Invite.User",
+                "public_address": "invite.user@ax",
+                "display_name": "Invite User",
+                "accepted_at": "2026-02-28T00:00:10Z",
+                "registry_bind_status": "propagated",
+            },
+        )
+
+    client = _client(handler)
+    assert client.accept_invite(token, payload, idempotency_key="invite-accept-1")["status"] == "accepted"
+
+
 @pytest.mark.parametrize(
     ("status_code", "expected_exception"),
     [

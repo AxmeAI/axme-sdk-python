@@ -51,6 +51,19 @@ with AxmeClient(config) as client:
     print(approval["approval"]["decision"])
     capabilities = client.get_capabilities()
     print(capabilities["supported_intent_types"])
+    invite = client.create_invite(
+        {"owner_agent": "agent://example/receiver", "recipient_hint": "Partner A", "ttl_seconds": 3600},
+        idempotency_key="invite-create-001",
+    )
+    print(invite["token"])
+    invite_details = client.get_invite(invite["token"])
+    print(invite_details["status"])
+    accepted = client.accept_invite(
+        invite["token"],
+        {"nick": "@PartnerA.User", "display_name": "Partner A"},
+        idempotency_key="invite-accept-001",
+    )
+    print(accepted["public_address"])
     subscription = client.upsert_webhook_subscription(
         {
             "callback_url": "https://integrator.example/webhooks/axme",
