@@ -231,6 +231,53 @@ def test_list_inbox_changes_sends_pagination_params() -> None:
     }
 
 
+def test_decide_approval_success() -> None:
+    approval_id = "55555555-5555-4555-8555-555555555555"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/approvals/{approval_id}/decision"
+        assert request.headers["idempotency-key"] == "approval-1"
+        assert request.read() == b'{"decision":"approve","comment":"approved"}'
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "approval": {
+                    "approval_id": approval_id,
+                    "decision": "approve",
+                    "comment": "approved",
+                    "decided_at": "2026-02-28T00:00:01Z",
+                },
+            },
+        )
+
+    client = _client(handler)
+    assert client.decide_approval(
+        approval_id,
+        decision="approve",
+        comment="approved",
+        idempotency_key="approval-1",
+    )["approval"]["approval_id"] == approval_id
+
+
+def test_get_capabilities_success() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/capabilities"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "capabilities": ["inbox", "intents"],
+                "supported_intent_types": ["intent.ask.v1", "intent.notify.v1"],
+            },
+        )
+
+    client = _client(handler)
+    assert client.get_capabilities()["ok"] is True
+
+
 @pytest.mark.parametrize(
     ("status_code", "expected_exception"),
     [
