@@ -138,6 +138,30 @@ class AxmeClient:
             retryable=idempotency_key is not None,
         )
 
+    def decide_approval(
+        self,
+        approval_id: str,
+        *,
+        decision: str,
+        comment: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"decision": decision}
+        if comment is not None:
+            payload["comment"] = comment
+        return self._request_json(
+            "POST",
+            f"/v1/approvals/{approval_id}/decision",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_capabilities(self, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", "/v1/capabilities", trace_id=trace_id, retryable=True)
+
     def upsert_webhook_subscription(
         self,
         payload: dict[str, Any],

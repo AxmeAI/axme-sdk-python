@@ -42,6 +42,15 @@ with AxmeClient(config) as client:
         idempotency_key="reply-001",
     )
     print(replied)
+    approval = client.decide_approval(
+        "55555555-5555-4555-8555-555555555555",
+        decision="approve",
+        comment="Looks good",
+        idempotency_key="approval-001",
+    )
+    print(approval["approval"]["decision"])
+    capabilities = client.get_capabilities()
+    print(capabilities["supported_intent_types"])
     subscription = client.upsert_webhook_subscription(
         {
             "callback_url": "https://integrator.example/webhooks/axme",
