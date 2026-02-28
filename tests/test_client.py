@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -36,16 +38,31 @@ def test_health_success() -> None:
 
 
 def test_create_intent_success() -> None:
-    payload = {"intent_type": "notify", "recipient": "agent://user/test"}
+    payload = {
+        "intent_type": "notify.message.v1",
+        "to_agent": "agent://user/test",
+        "from_agent": "agent://user/self",
+        "payload": {"text": "hello"},
+    }
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
         assert request.url.path == "/v1/intents"
-        assert request.read() == b'{"intent_type":"notify","recipient":"agent://user/test"}'
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["correlation_id"] == "11111111-1111-1111-1111-111111111111"
+        assert body["intent_type"] == "notify.message.v1"
+        assert request.headers["idempotency-key"] == "idem-1"
         return httpx.Response(200, json={"intent_id": "it_123"})
 
     client = _client(handler)
-    assert client.create_intent(payload) == {"intent_id": "it_123"}
+    assert (
+        client.create_intent(
+            payload,
+            correlation_id="11111111-1111-1111-1111-111111111111",
+            idempotency_key="idem-1",
+        )
+        == {"intent_id": "it_123"}
+    )
 
 
 def test_create_intent_raises_http_error() -> None:
@@ -55,6 +72,25 @@ def test_create_intent_raises_http_error() -> None:
     client = _client(handler, api_key="bad-token")
 
     with pytest.raises(AxmeHttpError) as exc_info:
-        client.create_intent({"intent_type": "notify"})
+        client.create_intent(
+            {"intent_type": "notify.message.v1", "to_agent": "agent://x", "from_agent": "agent://y", "payload": {}},
+            correlation_id="11111111-1111-1111-1111-111111111111",
+        )
 
     assert exc_info.value.status_code == 401
+
+
+def test_create_intent_raises_for_mismatched_correlation_id() -> None:
+    client = _client(lambda request: httpx.Response(200, json={"intent_id": "it_123"}))
+
+    with pytest.raises(ValueError, match="payload correlation_id"):
+        client.create_intent(
+            {
+                "intent_type": "notify.message.v1",
+                "to_agent": "agent://x",
+                "from_agent": "agent://y",
+                "payload": {},
+                "correlation_id": "22222222-2222-2222-2222-222222222222",
+            },
+            correlation_id="11111111-1111-1111-1111-111111111111",
+        )
