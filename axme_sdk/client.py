@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import httpx
+
+from .exceptions import AxmeHttpError
+
+
+@dataclass(frozen=True)
+class AxmeClientConfig:
+    base_url: str
+    api_key: str
+    timeout_seconds: float = 15.0
+
+
+class AxmeClient:
+    def __init__(self, config: AxmeClientConfig, *, http_client: httpx.Client | None = None) -> None:
+        self._config = config
+        self._owns_http_client = http_client is None
+        self._http = http_client or httpx.Client(
+            base_url=self._config.base_url.rstrip("/"),
+            timeout=self._config.timeout_seconds,
+            headers={
+                "Authorization": f"Bearer {self._config.api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+
+    def close(self) -> None:
+        if self._owns_http_client:
+            self._http.close()
+
+    def __enter__(self) -> "AxmeClient":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        self.close()
+
+    def health(self) -> dict[str, Any]:
+        response = self._http.get("/health")
+        if response.status_code >= 400:
+            raise AxmeHttpError(response.status_code, response.text)
+        return response.json()
+
+    def create_intent(self, payload: dict[str, Any]) -> dict[str, Any]:
+        response = self._http.post("/v1/intents", json=payload)
+        if response.status_code >= 400:
+            raise AxmeHttpError(response.status_code, response.text)
+        return response.json()
