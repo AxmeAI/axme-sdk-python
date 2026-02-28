@@ -31,6 +31,8 @@ with AxmeClient(config) as client:
     print(result)
     inbox = client.list_inbox(owner_agent="agent://example/receiver")
     print(inbox)
+    changes = client.list_inbox_changes(owner_agent="agent://example/receiver", limit=50)
+    print(changes["next_cursor"], changes["has_more"])
     replied = client.reply_inbox_thread(
         "11111111-1111-4111-8111-111111111111",
         message="Acknowledged",

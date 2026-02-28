@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from axme_sdk import AxmeClient, AxmeClientConfig
-from axme_sdk.exceptions import AxmeHttpError
+from axme_sdk.exceptions import AxmeAuthError, AxmeHttpError, AxmeRateLimitError, AxmeValidationError
 
 
 def _transport(handler):
@@ -164,3 +164,59 @@ def test_reply_inbox_thread_success() -> None:
         owner_agent="agent://owner",
         idempotency_key="reply-1",
     ) == {"ok": True, "thread": thread}
+
+
+def test_list_inbox_changes_sends_pagination_params() -> None:
+    thread = _thread_payload()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/inbox/changes"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        assert request.url.params.get("cursor") == "cur-1"
+        assert request.url.params.get("limit") == "50"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "changes": [{"cursor": "cur-2", "thread": thread}],
+                "next_cursor": "cur-2",
+                "has_more": True,
+            },
+        )
+
+    client = _client(handler)
+    assert client.list_inbox_changes(owner_agent="agent://owner", cursor="cur-1", limit=50) == {
+        "ok": True,
+        "changes": [{"cursor": "cur-2", "thread": thread}],
+        "next_cursor": "cur-2",
+        "has_more": True,
+    }
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected_exception"),
+    [
+        (401, AxmeAuthError),
+        (422, AxmeValidationError),
+    ],
+)
+def test_client_maps_http_errors_to_typed_exceptions(status_code: int, expected_exception: type[Exception]) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code, json={"message": "boom"})
+
+    client = _client(handler)
+    with pytest.raises(expected_exception):
+        client.health()
+
+
+def test_client_maps_rate_limit_error_with_retry_after() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"message": "too many"}, headers={"Retry-After": "30"})
+
+    client = _client(handler)
+    with pytest.raises(AxmeRateLimitError) as exc_info:
+        client.list_inbox()
+    assert exc_info.value.retry_after == 30
+    assert isinstance(exc_info.value.body, dict)
+    assert exc_info.value.body["message"] == "too many"

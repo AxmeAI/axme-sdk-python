@@ -5,7 +5,13 @@ from typing import Any
 
 import httpx
 
-from .exceptions import AxmeHttpError
+from .exceptions import (
+    AxmeAuthError,
+    AxmeHttpError,
+    AxmeRateLimitError,
+    AxmeServerError,
+    AxmeValidationError,
+)
 
 
 @dataclass(frozen=True)
@@ -40,9 +46,7 @@ class AxmeClient:
 
     def health(self) -> dict[str, Any]:
         response = self._http.get("/health")
-        if response.status_code >= 400:
-            raise AxmeHttpError(response.status_code, response.text)
-        return response.json()
+        return self._parse_json_response(response)
 
     def create_intent(
         self,
@@ -62,27 +66,38 @@ class AxmeClient:
             headers = {"Idempotency-Key": idempotency_key}
 
         response = self._http.post("/v1/intents", json=request_payload, headers=headers)
-        if response.status_code >= 400:
-            raise AxmeHttpError(response.status_code, response.text)
-        return response.json()
+        return self._parse_json_response(response)
 
     def list_inbox(self, *, owner_agent: str | None = None) -> dict[str, Any]:
         params: dict[str, str] | None = None
         if owner_agent is not None:
             params = {"owner_agent": owner_agent}
         response = self._http.get("/v1/inbox", params=params)
-        if response.status_code >= 400:
-            raise AxmeHttpError(response.status_code, response.text)
-        return response.json()
+        return self._parse_json_response(response)
 
     def get_inbox_thread(self, thread_id: str, *, owner_agent: str | None = None) -> dict[str, Any]:
         params: dict[str, str] | None = None
         if owner_agent is not None:
             params = {"owner_agent": owner_agent}
         response = self._http.get(f"/v1/inbox/{thread_id}", params=params)
-        if response.status_code >= 400:
-            raise AxmeHttpError(response.status_code, response.text)
-        return response.json()
+        return self._parse_json_response(response)
+
+    def list_inbox_changes(
+        self,
+        *,
+        owner_agent: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {}
+        if owner_agent is not None:
+            params["owner_agent"] = owner_agent
+        if cursor is not None:
+            params["cursor"] = cursor
+        if limit is not None:
+            params["limit"] = str(limit)
+        response = self._http.get("/v1/inbox/changes", params=params or None)
+        return self._parse_json_response(response)
 
     def reply_inbox_thread(
         self,
@@ -104,6 +119,56 @@ class AxmeClient:
             json={"message": message},
             headers=headers,
         )
+        return self._parse_json_response(response)
+
+    def _parse_json_response(self, response: httpx.Response) -> dict[str, Any]:
         if response.status_code >= 400:
-            raise AxmeHttpError(response.status_code, response.text)
+            self._raise_http_error(response)
         return response.json()
+
+    def _raise_http_error(self, response: httpx.Response) -> None:
+        body: Any | None
+        body = None
+        message = response.text
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        else:
+            if isinstance(body, dict):
+                error_value = body.get("error")
+                if isinstance(error_value, str):
+                    message = error_value
+                elif isinstance(error_value, dict) and isinstance(error_value.get("message"), str):
+                    message = error_value["message"]
+                elif isinstance(body.get("message"), str):
+                    message = body["message"]
+            elif isinstance(body, str):
+                message = body
+
+        retry_after = _parse_retry_after(response.headers.get("Retry-After"))
+        kwargs = {
+            "body": body,
+            "request_id": response.headers.get("x-request-id") or response.headers.get("request-id"),
+            "trace_id": response.headers.get("x-trace-id") or response.headers.get("trace-id"),
+            "retry_after": retry_after,
+        }
+        status_code = response.status_code
+        if status_code in (401, 403):
+            raise AxmeAuthError(status_code, message, **kwargs)
+        if status_code in (400, 409, 413, 422):
+            raise AxmeValidationError(status_code, message, **kwargs)
+        if status_code == 429:
+            raise AxmeRateLimitError(status_code, message, **kwargs)
+        if status_code >= 500:
+            raise AxmeServerError(status_code, message, **kwargs)
+        raise AxmeHttpError(status_code, message, **kwargs)
+
+
+def _parse_retry_after(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
