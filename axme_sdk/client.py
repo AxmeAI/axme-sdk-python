@@ -162,6 +162,42 @@ class AxmeClient:
     def get_capabilities(self, *, trace_id: str | None = None) -> dict[str, Any]:
         return self._request_json("GET", "/v1/capabilities", trace_id=trace_id, retryable=True)
 
+    def create_invite(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/invites/create",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_invite(self, token: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/invites/{token}", trace_id=trace_id, retryable=True)
+
+    def accept_invite(
+        self,
+        token: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/invites/{token}/accept",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
     def upsert_webhook_subscription(
         self,
         payload: dict[str, Any],
