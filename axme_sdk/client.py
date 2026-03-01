@@ -75,6 +75,9 @@ class AxmeClient:
             retryable=idempotency_key is not None,
         )
 
+    def get_intent(self, intent_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/intents/{intent_id}", trace_id=trace_id, retryable=True)
+
     def list_inbox(self, *, owner_agent: str | None = None, trace_id: str | None = None) -> dict[str, Any]:
         params: dict[str, str] | None = None
         if owner_agent is not None:
@@ -133,6 +136,94 @@ class AxmeClient:
             f"/v1/inbox/{thread_id}/reply",
             params=params,
             json_body={"message": message},
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def delegate_inbox_thread(
+        self,
+        thread_id: str,
+        payload: dict[str, Any],
+        *,
+        owner_agent: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        return self._request_json(
+            "POST",
+            f"/v1/inbox/{thread_id}/delegate",
+            params=params,
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def approve_inbox_thread(
+        self,
+        thread_id: str,
+        payload: dict[str, Any],
+        *,
+        owner_agent: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        return self._request_json(
+            "POST",
+            f"/v1/inbox/{thread_id}/approve",
+            params=params,
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def reject_inbox_thread(
+        self,
+        thread_id: str,
+        payload: dict[str, Any],
+        *,
+        owner_agent: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        return self._request_json(
+            "POST",
+            f"/v1/inbox/{thread_id}/reject",
+            params=params,
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def delete_inbox_messages(
+        self,
+        thread_id: str,
+        payload: dict[str, Any],
+        *,
+        owner_agent: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        return self._request_json(
+            "POST",
+            f"/v1/inbox/{thread_id}/messages/delete",
+            params=params,
+            json_body=payload,
             idempotency_key=idempotency_key,
             trace_id=trace_id,
             retryable=idempotency_key is not None,

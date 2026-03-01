@@ -155,6 +155,33 @@ def test_create_intent_raises_for_mismatched_correlation_id() -> None:
         )
 
 
+def test_get_intent_success() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/intents/{intent_id}"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "intent": {
+                    "intent_id": intent_id,
+                    "status": "accepted",
+                    "created_at": "2026-02-28T00:00:00Z",
+                    "intent_type": "notify.message.v1",
+                    "correlation_id": "11111111-1111-1111-1111-111111111111",
+                    "from_agent": "agent://from",
+                    "to_agent": "agent://to",
+                    "payload": {"text": "hello"},
+                },
+            },
+        )
+
+    client = _client(handler)
+    assert client.get_intent(intent_id)["intent"]["intent_id"] == intent_id
+
+
 def test_list_inbox_success() -> None:
     thread = _thread_payload()
 
@@ -229,6 +256,103 @@ def test_list_inbox_changes_sends_pagination_params() -> None:
         "next_cursor": "cur-2",
         "has_more": True,
     }
+
+
+def test_delegate_inbox_thread_success() -> None:
+    thread = _thread_payload()
+    thread_id = str(thread["thread_id"])
+    payload = {"delegate_to": "agent://example/delegate", "note": "handoff"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/inbox/{thread_id}/delegate"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        assert request.headers["idempotency-key"] == "delegate-1"
+        assert json.loads(request.read().decode("utf-8")) == payload
+        return httpx.Response(200, json={"ok": True, "thread": thread})
+
+    client = _client(handler)
+    assert client.delegate_inbox_thread(
+        thread_id,
+        payload,
+        owner_agent="agent://owner",
+        idempotency_key="delegate-1",
+    ) == {"ok": True, "thread": thread}
+
+
+def test_approve_inbox_thread_success() -> None:
+    thread = _thread_payload()
+    thread_id = str(thread["thread_id"])
+    payload = {"comment": "approved"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/inbox/{thread_id}/approve"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        assert request.headers["idempotency-key"] == "approve-1"
+        assert json.loads(request.read().decode("utf-8")) == payload
+        return httpx.Response(200, json={"ok": True, "thread": thread})
+
+    client = _client(handler)
+    assert client.approve_inbox_thread(
+        thread_id,
+        payload,
+        owner_agent="agent://owner",
+        idempotency_key="approve-1",
+    ) == {"ok": True, "thread": thread}
+
+
+def test_reject_inbox_thread_success() -> None:
+    thread = _thread_payload()
+    thread_id = str(thread["thread_id"])
+    payload = {"comment": "rejected"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/inbox/{thread_id}/reject"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        assert request.headers["idempotency-key"] == "reject-1"
+        assert json.loads(request.read().decode("utf-8")) == payload
+        return httpx.Response(200, json={"ok": True, "thread": thread})
+
+    client = _client(handler)
+    assert client.reject_inbox_thread(
+        thread_id,
+        payload,
+        owner_agent="agent://owner",
+        idempotency_key="reject-1",
+    ) == {"ok": True, "thread": thread}
+
+
+def test_delete_inbox_messages_success() -> None:
+    thread = _thread_payload()
+    thread_id = str(thread["thread_id"])
+    payload = {"mode": "self", "limit": 1}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/inbox/{thread_id}/messages/delete"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        assert request.headers["idempotency-key"] == "delete-1"
+        assert json.loads(request.read().decode("utf-8")) == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "thread": thread,
+                "mode": "self",
+                "deleted_count": 1,
+                "message_ids": ["msg-1"],
+            },
+        )
+
+    client = _client(handler)
+    assert client.delete_inbox_messages(
+        thread_id,
+        payload,
+        owner_agent="agent://owner",
+        idempotency_key="delete-1",
+    )["deleted_count"] == 1
 
 
 def test_decide_approval_success() -> None:
