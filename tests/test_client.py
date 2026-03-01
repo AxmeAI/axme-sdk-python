@@ -461,6 +461,71 @@ def test_finalize_media_upload_success() -> None:
     assert client.finalize_media_upload(payload, idempotency_key="media-finalize-1")["status"] == "ready"
 
 
+def test_upsert_schema_success() -> None:
+    semantic_type = "axme.calendar.schedule.v1"
+    payload = {
+        "semantic_type": semantic_type,
+        "schema_json": {"type": "object", "required": ["date"], "properties": {"date": {"type": "string"}}},
+        "compatibility_mode": "strict",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/schemas"
+        assert request.headers["idempotency-key"] == "schema-upsert-1"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "schema": {
+                    "semantic_type": semantic_type,
+                    "schema_ref": f"schema://{semantic_type}",
+                    "schema_hash": "a" * 64,
+                    "compatibility_mode": "strict",
+                    "scope": "tenant",
+                    "owner_agent": "agent://owner",
+                    "active": True,
+                    "created_at": "2026-02-28T00:00:00Z",
+                    "updated_at": "2026-02-28T00:00:01Z",
+                },
+            },
+        )
+
+    client = _client(handler)
+    assert client.upsert_schema(payload, idempotency_key="schema-upsert-1")["schema"]["semantic_type"] == semantic_type
+
+
+def test_get_schema_success() -> None:
+    semantic_type = "axme.calendar.schedule.v1"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/schemas/{semantic_type}"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "schema": {
+                    "semantic_type": semantic_type,
+                    "schema_ref": f"schema://{semantic_type}",
+                    "schema_hash": "b" * 64,
+                    "compatibility_mode": "strict",
+                    "scope": "tenant",
+                    "owner_agent": "agent://owner",
+                    "active": True,
+                    "schema_json": {"type": "object", "properties": {"date": {"type": "string"}}},
+                    "created_at": "2026-02-28T00:00:00Z",
+                    "updated_at": "2026-02-28T00:00:01Z",
+                },
+            },
+        )
+
+    client = _client(handler)
+    assert client.get_schema(semantic_type)["schema"]["semantic_type"] == semantic_type
+
+
 @pytest.mark.parametrize(
     ("status_code", "expected_exception"),
     [
