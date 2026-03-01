@@ -31,8 +31,11 @@ with AxmeClient(config) as client:
         idempotency_key="create-intent-001",
     )
     print(result)
+    print(client.get_intent(result["intent_id"])["intent"]["status"])
     inbox = client.list_inbox(owner_agent="agent://example/receiver", trace_id="trace-inbox-001")
     print(inbox)
+    thread = client.get_inbox_thread("11111111-1111-4111-8111-111111111111", owner_agent="agent://example/receiver")
+    print(thread["thread"]["status"])
     changes = client.list_inbox_changes(owner_agent="agent://example/receiver", limit=50)
     print(changes["next_cursor"], changes["has_more"])
     replied = client.reply_inbox_thread(
@@ -42,6 +45,34 @@ with AxmeClient(config) as client:
         idempotency_key="reply-001",
     )
     print(replied)
+    delegated = client.delegate_inbox_thread(
+        "11111111-1111-4111-8111-111111111111",
+        {"delegate_to": "agent://example/delegate", "note": "handoff"},
+        owner_agent="agent://example/receiver",
+        idempotency_key="delegate-001",
+    )
+    print(delegated["thread"]["status"])
+    approved = client.approve_inbox_thread(
+        "11111111-1111-4111-8111-111111111111",
+        {"comment": "approved"},
+        owner_agent="agent://example/receiver",
+        idempotency_key="approve-001",
+    )
+    print(approved["thread"]["status"])
+    rejected = client.reject_inbox_thread(
+        "11111111-1111-4111-8111-111111111111",
+        {"comment": "rejected"},
+        owner_agent="agent://example/receiver",
+        idempotency_key="reject-001",
+    )
+    print(rejected["thread"]["status"])
+    deleted = client.delete_inbox_messages(
+        "11111111-1111-4111-8111-111111111111",
+        {"mode": "self", "limit": 1},
+        owner_agent="agent://example/receiver",
+        idempotency_key="delete-001",
+    )
+    print(deleted["deleted_count"])
     approval = client.decide_approval(
         "55555555-5555-4555-8555-555555555555",
         decision="approve",
