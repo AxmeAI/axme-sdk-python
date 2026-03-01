@@ -36,6 +36,23 @@ with AxmeClient(config) as client:
     )
     print(result)
     print(client.get_intent(result["intent_id"])["intent"]["status"])
+    sent_intent_id = client.send_intent(
+        {
+            "intent_type": "notify.message.v1",
+            "from_agent": "agent://example/sender",
+            "to_agent": "agent://example/receiver",
+            "payload": {"text": "hello again"},
+        },
+        idempotency_key="send-intent-001",
+    )
+    print(sent_intent_id)
+    print(client.list_intent_events(sent_intent_id, since=0))
+    for event in client.observe(sent_intent_id, since=0, wait_seconds=10):
+        print(event["event_type"], event["status"])
+        if event["status"] in {"COMPLETED", "FAILED", "CANCELED"}:
+            break
+    terminal = client.wait_for(sent_intent_id, timeout_seconds=30)
+    print(terminal["status"])
     inbox = client.list_inbox(owner_agent="agent://example/receiver", trace_id="trace-inbox-001")
     print(inbox)
     thread = client.get_inbox_thread("11111111-1111-4111-8111-111111111111", owner_agent="agent://example/receiver")
