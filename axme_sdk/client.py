@@ -198,6 +198,41 @@ class AxmeClient:
             retryable=idempotency_key is not None,
         )
 
+    def create_media_upload(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/media/create-upload",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_media_upload(self, upload_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/media/{upload_id}", trace_id=trace_id, retryable=True)
+
+    def finalize_media_upload(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/media/finalize-upload",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
     def upsert_webhook_subscription(
         self,
         payload: dict[str, Any],
