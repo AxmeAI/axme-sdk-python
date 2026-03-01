@@ -182,6 +182,176 @@ def test_get_intent_success() -> None:
     assert client.get_intent(intent_id)["intent"]["intent_id"] == intent_id
 
 
+def test_send_intent_returns_intent_id() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/intents"
+        body = json.loads(request.read().decode("utf-8"))
+        assert isinstance(body["correlation_id"], str)
+        return httpx.Response(200, json={"intent_id": "33333333-3333-4333-8333-333333333333"})
+
+    client = _client(handler)
+    intent_id = client.send_intent(
+        {
+            "intent_type": "notify.message.v1",
+            "to_agent": "agent://x",
+            "from_agent": "agent://y",
+            "payload": {"text": "hello"},
+        },
+        idempotency_key="send-1",
+    )
+    assert intent_id == "33333333-3333-4333-8333-333333333333"
+
+
+def test_send_intent_requires_response_intent_id() -> None:
+    client = _client(lambda request: httpx.Response(200, json={"ok": True}))
+
+    with pytest.raises(ValueError, match="intent_id"):
+        client.send_intent(
+            {
+                "intent_type": "notify.message.v1",
+                "to_agent": "agent://x",
+                "from_agent": "agent://y",
+                "payload": {},
+            }
+        )
+
+
+def test_list_intent_events_success() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/intents/{intent_id}/events"
+        assert request.url.params.get("since") == "2"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "events": [
+                    {
+                        "intent_id": intent_id,
+                        "seq": 3,
+                        "event_type": "intent.completed",
+                        "status": "COMPLETED",
+                        "at": "2026-02-28T00:00:10Z",
+                    }
+                ],
+            },
+        )
+
+    client = _client(handler)
+    response = client.list_intent_events(intent_id, since=2)
+    assert response["ok"] is True
+    assert response["events"][0]["seq"] == 3
+
+
+def test_resolve_intent_success() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/intents/{intent_id}/resolve"
+        assert request.headers["idempotency-key"] == "resolve-1"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["status"] == "COMPLETED"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "intent": {"intent_id": intent_id, "status": "done"},
+                "event": {"intent_id": intent_id, "seq": 3, "event_type": "intent.completed", "status": "COMPLETED"},
+                "completion_delivery": {"delivered": False, "reason": "reply_to_not_set"},
+            },
+        )
+
+    client = _client(handler)
+    response = client.resolve_intent(
+        intent_id,
+        {"status": "COMPLETED", "result": {"answer": "done"}},
+        idempotency_key="resolve-1",
+    )
+    assert response["event"]["event_type"] == "intent.completed"
+
+
+def test_observe_prefers_stream_and_yields_terminal_event() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/intents/{intent_id}/events/stream"
+        assert request.url.params.get("since") == "1"
+        assert request.url.params.get("wait_seconds") == "5"
+        sse_payload = (
+            "id: 2\n"
+            "event: intent.submitted\n"
+            "data: {\"intent_id\":\"22222222-2222-4222-8222-222222222222\",\"seq\":2,"
+            "\"event_type\":\"intent.submitted\",\"status\":\"SUBMITTED\",\"at\":\"2026-02-28T00:00:01Z\"}\n\n"
+            "id: 3\n"
+            "event: intent.completed\n"
+            "data: {\"intent_id\":\"22222222-2222-4222-8222-222222222222\",\"seq\":3,"
+            "\"event_type\":\"intent.completed\",\"status\":\"COMPLETED\",\"at\":\"2026-02-28T00:00:10Z\"}\n\n"
+        )
+        return httpx.Response(200, text=sse_payload)
+
+    client = _client(handler)
+    observed = list(client.observe(intent_id, since=1, wait_seconds=5, poll_interval_seconds=0))
+    assert [item["event_type"] for item in observed] == ["intent.submitted", "intent.completed"]
+
+
+def test_observe_falls_back_to_polling_when_stream_unavailable() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+    calls = {"stream": 0, "poll": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events/stream"):
+            calls["stream"] += 1
+            return httpx.Response(404, json={"error": "not found"})
+        assert request.url.path.endswith("/events")
+        calls["poll"] += 1
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "events": [
+                    {
+                        "intent_id": intent_id,
+                        "seq": 1,
+                        "event_type": "intent.created",
+                        "status": "CREATED",
+                        "at": "2026-02-28T00:00:00Z",
+                    },
+                    {
+                        "intent_id": intent_id,
+                        "seq": 2,
+                        "event_type": "intent.completed",
+                        "status": "COMPLETED",
+                        "at": "2026-02-28T00:00:10Z",
+                    },
+                ],
+            },
+        )
+
+    client = _client(handler)
+    observed = list(client.observe(intent_id, poll_interval_seconds=0))
+    assert [item["event_type"] for item in observed] == ["intent.created", "intent.completed"]
+    assert calls["stream"] == 1
+    assert calls["poll"] == 1
+
+
+def test_wait_for_raises_timeout_without_terminal_event() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events/stream"):
+            return httpx.Response(404, json={"error": "not found"})
+        return httpx.Response(200, json={"ok": True, "events": []})
+
+    client = _client(handler)
+    with pytest.raises(TimeoutError):
+        client.wait_for(intent_id, timeout_seconds=0.01, poll_interval_seconds=0)
+
+
 def test_list_inbox_success() -> None:
     thread = _thread_payload()
 
