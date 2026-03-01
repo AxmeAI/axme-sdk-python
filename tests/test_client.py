@@ -977,3 +977,180 @@ def test_does_not_retry_post_without_idempotency_key() -> None:
             correlation_id="11111111-1111-1111-1111-111111111111",
         )
     assert attempts == 1
+
+
+def test_mcp_initialize_success() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/mcp"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["jsonrpc"] == "2.0"
+        assert body["method"] == "initialize"
+        assert body["params"]["protocolVersion"] == "2024-11-05"
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {"listChanged": False}}},
+            },
+        )
+
+    client = _client(handler)
+    result = client.mcp_initialize()
+    assert result["protocolVersion"] == "2024-11-05"
+
+
+def test_mcp_list_tools_and_call_tool_with_schema_validation() -> None:
+    calls: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode("utf-8"))
+        calls.append(body)
+        if body["method"] == "tools/list":
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": body["id"],
+                    "result": {
+                        "tools": [
+                            {
+                                "name": "axme.send",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "required": ["to"],
+                                    "properties": {
+                                        "to": {"type": "string"},
+                                        "text": {"type": "string"},
+                                        "idempotency_key": {"type": "string"},
+                                        "owner_agent": {"type": "string"},
+                                    },
+                                },
+                            }
+                        ]
+                    },
+                },
+            )
+        assert body["method"] == "tools/call"
+        assert body["params"]["name"] == "axme.send"
+        assert body["params"]["owner_agent"] == "agent://owner/default"
+        args = body["params"]["arguments"]
+        assert args["owner_agent"] == "agent://owner/default"
+        assert args["idempotency_key"] == "mcp-idem-1"
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "result": {"ok": True, "tool": "axme.send", "status": "completed"},
+            },
+        )
+
+    observed_events: list[dict[str, object]] = []
+    cfg = AxmeClientConfig(
+        base_url="https://api.axme.test",
+        api_key="token",
+        default_owner_agent="agent://owner/default",
+        mcp_observer=lambda event: observed_events.append(event),
+    )
+    http_client = httpx.Client(
+        transport=_transport(handler),
+        base_url=cfg.base_url,
+        headers={
+            "Authorization": f"Bearer {cfg.api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    client = AxmeClient(cfg, http_client=http_client)
+    tools = client.mcp_list_tools()
+    assert isinstance(tools["tools"], list)
+    call_result = client.mcp_call_tool(
+        "axme.send",
+        arguments={"to": "agent://bob", "text": "hello"},
+        idempotency_key="mcp-idem-1",
+    )
+    assert call_result["ok"] is True
+    assert len(calls) == 2
+    assert any(event.get("phase") == "request" for event in observed_events)
+    assert any(event.get("phase") == "response" for event in observed_events)
+
+
+def test_mcp_call_tool_validates_required_arguments() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode("utf-8"))
+        if body["method"] == "tools/list":
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": body["id"],
+                    "result": {
+                        "tools": [
+                            {
+                                "name": "axme.reply",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "required": ["thread_id", "message"],
+                                    "properties": {
+                                        "thread_id": {"type": "string"},
+                                        "message": {"type": "string"},
+                                    },
+                                },
+                            }
+                        ]
+                    },
+                },
+            )
+        return httpx.Response(500, json={"error": "unexpected"})
+
+    client = _client(handler)
+    client.mcp_list_tools()
+    with pytest.raises(ValueError, match="missing required MCP tool arguments"):
+        client.mcp_call_tool("axme.reply", arguments={"thread_id": "t-1"})
+
+
+def test_mcp_call_tool_maps_rpc_errors() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": body.get("id"),
+                "error": {"code": -32602, "message": "invalid params"},
+            },
+        )
+
+    client = _client(handler)
+    with pytest.raises(AxmeValidationError) as exc_info:
+        client.mcp_call_tool("axme.send", arguments={"to": "agent://bob"})
+    assert exc_info.value.status_code == 422
+
+
+def test_mcp_call_tool_retries_http_failure_when_retryable() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(500, json={"error": "temporary"})
+        body = json.loads(request.read().decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": body.get("id"),
+                "result": {"ok": True, "tool": "axme.send", "status": "completed"},
+            },
+        )
+
+    client = _client(handler)
+    result = client.mcp_call_tool(
+        "axme.send",
+        arguments={"to": "agent://bob", "text": "hello"},
+        idempotency_key="idem-1",
+    )
+    assert result["ok"] is True
+    assert attempts == 2
