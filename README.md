@@ -2,6 +2,10 @@
 
 Official Python SDK for Axme APIs and workflows.
 
+Canonical protocol positioning:
+
+- **AXP is the Intent Protocol (durable execution layer).**
+
 ## Status
 
 Initial v1 skeleton in progress.
