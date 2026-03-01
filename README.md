@@ -64,6 +64,23 @@ with AxmeClient(config) as client:
         idempotency_key="invite-accept-001",
     )
     print(accepted["public_address"])
+    media_upload = client.create_media_upload(
+        {
+            "owner_agent": "agent://example/receiver",
+            "filename": "contract.pdf",
+            "mime_type": "application/pdf",
+            "size_bytes": 12345,
+        },
+        idempotency_key="media-create-001",
+    )
+    print(media_upload["upload_id"])
+    media_state = client.get_media_upload(media_upload["upload_id"])
+    print(media_state["upload"]["status"])
+    finalized = client.finalize_media_upload(
+        {"upload_id": media_upload["upload_id"], "size_bytes": 12345},
+        idempotency_key="media-finalize-001",
+    )
+    print(finalized["status"])
     subscription = client.upsert_webhook_subscription(
         {
             "callback_url": "https://integrator.example/webhooks/axme",

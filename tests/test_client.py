@@ -364,6 +364,103 @@ def test_accept_invite_success() -> None:
     assert client.accept_invite(token, payload, idempotency_key="invite-accept-1")["status"] == "accepted"
 
 
+def test_create_media_upload_success() -> None:
+    upload_id = "77777777-7777-4777-8777-777777777777"
+    payload = {
+        "owner_agent": "agent://owner",
+        "filename": "contract.pdf",
+        "mime_type": "application/pdf",
+        "size_bytes": 12345,
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/media/create-upload"
+        assert request.headers["idempotency-key"] == "media-create-1"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "upload_id": upload_id,
+                "owner_agent": "agent://owner",
+                "bucket": "axme-media",
+                "object_path": "agent-owner/contract.pdf",
+                "upload_url": "https://upload.example/media/1",
+                "status": "pending",
+                "expires_at": "2026-03-01T00:00:00Z",
+                "max_size_bytes": 10485760,
+            },
+        )
+
+    client = _client(handler)
+    assert client.create_media_upload(payload, idempotency_key="media-create-1")["upload_id"] == upload_id
+
+
+def test_get_media_upload_success() -> None:
+    upload_id = "77777777-7777-4777-8777-777777777777"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/media/{upload_id}"
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "upload": {
+                    "upload_id": upload_id,
+                    "owner_agent": "agent://owner",
+                    "bucket": "axme-media",
+                    "object_path": "agent-owner/contract.pdf",
+                    "mime_type": "application/pdf",
+                    "filename": "contract.pdf",
+                    "size_bytes": 12345,
+                    "sha256": None,
+                    "status": "pending",
+                    "created_at": "2026-02-28T00:00:00Z",
+                    "expires_at": "2026-03-01T00:00:00Z",
+                    "finalized_at": None,
+                    "download_url": None,
+                    "preview_url": None,
+                },
+            },
+        )
+
+    client = _client(handler)
+    assert client.get_media_upload(upload_id)["upload"]["status"] == "pending"
+
+
+def test_finalize_media_upload_success() -> None:
+    upload_id = "77777777-7777-4777-8777-777777777777"
+    payload = {"upload_id": upload_id, "size_bytes": 12345}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/media/finalize-upload"
+        assert request.headers["idempotency-key"] == "media-finalize-1"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "upload_id": upload_id,
+                "owner_agent": "agent://owner",
+                "bucket": "axme-media",
+                "object_path": "agent-owner/contract.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 12345,
+                "sha256": None,
+                "status": "ready",
+                "finalized_at": "2026-02-28T00:00:10Z",
+            },
+        )
+
+    client = _client(handler)
+    assert client.finalize_media_upload(payload, idempotency_key="media-finalize-1")["status"] == "ready"
+
+
 @pytest.mark.parametrize(
     ("status_code", "expected_exception"),
     [
