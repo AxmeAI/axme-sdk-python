@@ -81,6 +81,17 @@ with AxmeClient(config) as client:
         idempotency_key="media-finalize-001",
     )
     print(finalized["status"])
+    schema = client.upsert_schema(
+        {
+            "semantic_type": "axme.calendar.schedule.v1",
+            "schema_json": {"type": "object", "required": ["date"], "properties": {"date": {"type": "string"}}},
+            "compatibility_mode": "strict",
+        },
+        idempotency_key="schema-upsert-001",
+    )
+    print(schema["schema"]["schema_hash"])
+    schema_get = client.get_schema("axme.calendar.schedule.v1")
+    print(schema_get["schema"]["semantic_type"])
     subscription = client.upsert_webhook_subscription(
         {
             "callback_url": "https://integrator.example/webhooks/axme",
