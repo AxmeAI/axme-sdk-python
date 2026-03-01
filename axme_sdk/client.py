@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import time
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 import httpx
@@ -24,6 +24,10 @@ class AxmeClientConfig:
     max_retries: int = 2
     retry_backoff_seconds: float = 0.2
     auto_trace_id: bool = True
+    default_owner_agent: str | None = None
+    mcp_endpoint_path: str = "/mcp"
+    mcp_protocol_version: str = "2024-11-05"
+    mcp_observer: Callable[[dict[str, Any]], None] | None = None
 
 
 class AxmeClient:
@@ -38,6 +42,7 @@ class AxmeClient:
                 "Content-Type": "application/json",
             },
         )
+        self._mcp_tool_schemas: dict[str, dict[str, Any]] = {}
 
     def close(self) -> None:
         if self._owns_http_client:
@@ -485,6 +490,70 @@ class AxmeClient:
         )
         return response
 
+    def mcp_initialize(self, *, protocol_version: str | None = None, trace_id: str | None = None) -> dict[str, Any]:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid4()),
+            "method": "initialize",
+            "params": {"protocolVersion": protocol_version or self._config.mcp_protocol_version},
+        }
+        return self._mcp_request(payload=payload, trace_id=trace_id, retryable=True)
+
+    def mcp_list_tools(self, *, trace_id: str | None = None) -> dict[str, Any]:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid4()),
+            "method": "tools/list",
+            "params": {},
+        }
+        result = self._mcp_request(payload=payload, trace_id=trace_id, retryable=True)
+        tools = result.get("tools")
+        if isinstance(tools, list):
+            self._mcp_tool_schemas = {}
+            for tool in tools:
+                if not isinstance(tool, dict):
+                    continue
+                name = tool.get("name")
+                input_schema = tool.get("inputSchema")
+                if isinstance(name, str) and isinstance(input_schema, dict):
+                    self._mcp_tool_schemas[name] = input_schema
+        return result
+
+    def mcp_call_tool(
+        self,
+        name: str,
+        *,
+        arguments: dict[str, Any] | None = None,
+        owner_agent: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+        validate_input_schema: bool = True,
+        retryable: bool | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("tool name must be non-empty string")
+        args = dict(arguments or {})
+        resolved_owner = owner_agent or self._config.default_owner_agent
+        if resolved_owner and "owner_agent" not in args:
+            args["owner_agent"] = resolved_owner
+        if idempotency_key and "idempotency_key" not in args:
+            args["idempotency_key"] = idempotency_key
+
+        if validate_input_schema:
+            self._validate_mcp_tool_arguments(name=name.strip(), arguments=args)
+
+        params: dict[str, Any] = {"name": name.strip(), "arguments": args}
+        if resolved_owner:
+            params["owner_agent"] = resolved_owner
+        payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid4()),
+            "method": "tools/call",
+            "params": params,
+        }
+        should_retry = retryable if retryable is not None else bool(idempotency_key)
+        return self._mcp_request(payload=payload, trace_id=trace_id, retryable=should_retry)
+
     def _request_json(
         self,
         method: str,
@@ -528,6 +597,99 @@ class AxmeClient:
             return self._parse_json_response(response)
 
         raise RuntimeError("unreachable retry loop state")
+
+    def _mcp_request(
+        self,
+        *,
+        payload: dict[str, Any],
+        trace_id: str | None,
+        retryable: bool,
+    ) -> dict[str, Any]:
+        self._notify_mcp_observer(
+            {
+                "phase": "request",
+                "method": payload.get("method"),
+                "rpc_id": payload.get("id"),
+                "retryable": retryable,
+            }
+        )
+        response = self._request_json(
+            "POST",
+            self._config.mcp_endpoint_path,
+            json_body=payload,
+            trace_id=trace_id,
+            retryable=retryable,
+        )
+        if isinstance(response.get("error"), dict):
+            self._raise_mcp_rpc_error(response)
+        result = response.get("result")
+        if not isinstance(result, dict):
+            raise AxmeHttpError(502, "invalid MCP response: missing result object", body=response)
+        self._notify_mcp_observer(
+            {
+                "phase": "response",
+                "method": payload.get("method"),
+                "rpc_id": payload.get("id"),
+                "result_keys": sorted(result.keys()),
+            }
+        )
+        return result
+
+    def _raise_mcp_rpc_error(self, response_payload: dict[str, Any]) -> None:
+        error = response_payload.get("error")
+        if not isinstance(error, dict):
+            raise AxmeHttpError(502, "invalid MCP response: error is not object", body=response_payload)
+        code = error.get("code")
+        message = error.get("message")
+        if not isinstance(code, int):
+            code = -32000
+        if not isinstance(message, str) or not message:
+            message = "MCP RPC error"
+        data = error.get("data")
+        kwargs = {"body": {"code": code, "message": message, "data": data}}
+        if code in {-32001, -32003}:
+            raise AxmeAuthError(403, message, **kwargs)
+        if code == -32004:
+            raise AxmeRateLimitError(429, message, **kwargs)
+        if code == -32602:
+            raise AxmeValidationError(422, message, **kwargs)
+        if code <= -32000:
+            raise AxmeServerError(502, message, **kwargs)
+        raise AxmeHttpError(400, message, **kwargs)
+
+    def _validate_mcp_tool_arguments(self, *, name: str, arguments: dict[str, Any]) -> None:
+        schema = self._mcp_tool_schemas.get(name)
+        if not isinstance(schema, dict):
+            return
+        required = schema.get("required")
+        if isinstance(required, list):
+            missing = [item for item in required if isinstance(item, str) and item not in arguments]
+            if missing:
+                raise ValueError(f"missing required MCP tool arguments for {name}: {', '.join(sorted(missing))}")
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            return
+        for key, value in arguments.items():
+            if key not in properties:
+                continue
+            prop = properties[key]
+            if not isinstance(prop, dict):
+                continue
+            declared_type = prop.get("type")
+            if isinstance(declared_type, list):
+                accepted_types = [item for item in declared_type if isinstance(item, str)]
+            elif isinstance(declared_type, str):
+                accepted_types = [declared_type]
+            else:
+                accepted_types = []
+            if accepted_types and not _matches_json_type(value=value, accepted_types=accepted_types):
+                raise ValueError(f"invalid MCP argument type for {name}.{key}: expected {accepted_types}")
+
+    def _notify_mcp_observer(self, event: dict[str, Any]) -> None:
+        observer = self._config.mcp_observer
+        if observer is None:
+            return
+        observer(event)
 
     def _sleep_before_retry(self, attempt_idx: int, *, retry_after: int | None) -> None:
         if retry_after is not None:
@@ -599,3 +761,22 @@ def _parse_retry_after(value: str | None) -> int | None:
 
 def _is_retryable_status(status_code: int) -> bool:
     return status_code == 429 or status_code >= 500
+
+
+def _matches_json_type(*, value: Any, accepted_types: list[str]) -> bool:
+    for type_name in accepted_types:
+        if type_name == "null" and value is None:
+            return True
+        if type_name == "string" and isinstance(value, str):
+            return True
+        if type_name == "boolean" and isinstance(value, bool):
+            return True
+        if type_name == "integer" and isinstance(value, int) and not isinstance(value, bool):
+            return True
+        if type_name == "number" and isinstance(value, (int, float)) and not isinstance(value, bool):
+            return True
+        if type_name == "object" and isinstance(value, dict):
+            return True
+        if type_name == "array" and isinstance(value, list):
+            return True
+    return False

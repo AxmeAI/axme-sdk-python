@@ -2,6 +2,10 @@
 
 Official Python SDK for Axme APIs and workflows.
 
+Canonical protocol positioning:
+
+- **AXP is the Intent Protocol (durable execution layer).**
+
 ## Status
 
 Initial v1 skeleton in progress.
@@ -155,6 +159,17 @@ with AxmeClient(config) as client:
         owner_agent="agent://example/receiver",
     )
     print(events["event_id"])
+    mcp_info = client.mcp_initialize()
+    print(mcp_info["protocolVersion"])
+    tools = client.mcp_list_tools()
+    print(len(tools.get("tools", [])))
+    mcp_result = client.mcp_call_tool(
+        "axme.send",
+        arguments={"to": "agent://example/receiver", "text": "hello from MCP"},
+        owner_agent="agent://example/receiver",
+        idempotency_key="mcp-send-001",
+    )
+    print(mcp_result.get("status"))
 ```
 
 ## Development
