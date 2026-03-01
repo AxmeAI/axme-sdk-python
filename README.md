@@ -92,6 +92,25 @@ with AxmeClient(config) as client:
     print(schema["schema"]["schema_hash"])
     schema_get = client.get_schema("axme.calendar.schedule.v1")
     print(schema_get["schema"]["semantic_type"])
+    registered = client.register_nick(
+        {"nick": "@partner.user", "display_name": "Partner User"},
+        idempotency_key="nick-register-001",
+    )
+    print(registered["owner_agent"])
+    nick_check = client.check_nick("@partner.user")
+    print(nick_check["available"])
+    renamed = client.rename_nick(
+        {"owner_agent": registered["owner_agent"], "nick": "@partner.new"},
+        idempotency_key="nick-rename-001",
+    )
+    print(renamed["public_address"])
+    profile = client.get_user_profile(registered["owner_agent"])
+    print(profile["updated_at"])
+    profile_updated = client.update_user_profile(
+        {"owner_agent": registered["owner_agent"], "display_name": "Partner User Updated"},
+        idempotency_key="profile-update-001",
+    )
+    print(profile_updated["display_name"])
     subscription = client.upsert_webhook_subscription(
         {
             "callback_url": "https://integrator.example/webhooks/axme",

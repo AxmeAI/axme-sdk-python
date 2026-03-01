@@ -252,6 +252,66 @@ class AxmeClient:
     def get_schema(self, semantic_type: str, *, trace_id: str | None = None) -> dict[str, Any]:
         return self._request_json("GET", f"/v1/schemas/{semantic_type}", trace_id=trace_id, retryable=True)
 
+    def register_nick(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/users/register-nick",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def check_nick(self, nick: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", "/v1/users/check-nick", params={"nick": nick}, trace_id=trace_id, retryable=True)
+
+    def rename_nick(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/users/rename-nick",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_user_profile(self, owner_agent: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            "/v1/users/profile",
+            params={"owner_agent": owner_agent},
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def update_user_profile(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/users/profile/update",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
     def upsert_webhook_subscription(
         self,
         payload: dict[str, Any],

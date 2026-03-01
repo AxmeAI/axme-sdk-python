@@ -526,6 +526,142 @@ def test_get_schema_success() -> None:
     assert client.get_schema(semantic_type)["schema"]["semantic_type"] == semantic_type
 
 
+def test_register_nick_success() -> None:
+    payload = {"nick": "@partner.user", "display_name": "Partner User"}
+    user_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    owner_agent = f"agent://user/{user_id}"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/users/register-nick"
+        assert request.headers["idempotency-key"] == "nick-register-1"
+        assert json.loads(request.read().decode("utf-8")) == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "user_id": user_id,
+                "owner_agent": owner_agent,
+                "nick": "@partner.user",
+                "public_address": "partner.user@ax",
+                "display_name": "Partner User",
+                "phone": None,
+                "email": None,
+                "created_at": "2026-02-28T00:00:00Z",
+            },
+        )
+
+    client = _client(handler)
+    assert client.register_nick(payload, idempotency_key="nick-register-1")["owner_agent"] == owner_agent
+
+
+def test_check_nick_success() -> None:
+    nick = "@partner.user"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/users/check-nick"
+        assert request.url.params.get("nick") == nick
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "nick": nick,
+                "normalized_nick": "partner.user",
+                "public_address": "partner.user@ax",
+                "available": True,
+            },
+        )
+
+    client = _client(handler)
+    assert client.check_nick(nick)["available"] is True
+
+
+def test_rename_nick_success() -> None:
+    payload = {"owner_agent": "agent://user/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nick": "@partner.new"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/users/rename-nick"
+        assert request.headers["idempotency-key"] == "nick-rename-1"
+        assert json.loads(request.read().decode("utf-8")) == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "user_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "owner_agent": payload["owner_agent"],
+                "nick": "@partner.new",
+                "public_address": "partner.new@ax",
+                "display_name": "Partner User",
+                "phone": None,
+                "email": None,
+                "renamed_at": "2026-02-28T00:00:01Z",
+            },
+        )
+
+    client = _client(handler)
+    assert client.rename_nick(payload, idempotency_key="nick-rename-1")["nick"] == "@partner.new"
+
+
+def test_get_user_profile_success() -> None:
+    owner_agent = "agent://user/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/users/profile"
+        assert request.url.params.get("owner_agent") == owner_agent
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "user_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "owner_agent": owner_agent,
+                "nick": "@partner.new",
+                "normalized_nick": "partner.new",
+                "public_address": "partner.new@ax",
+                "display_name": "Partner User",
+                "phone": None,
+                "email": None,
+                "updated_at": "2026-02-28T00:00:02Z",
+            },
+        )
+
+    client = _client(handler)
+    assert client.get_user_profile(owner_agent)["nick"] == "@partner.new"
+
+
+def test_update_user_profile_success() -> None:
+    payload = {
+        "owner_agent": "agent://user/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "display_name": "Partner Updated",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/users/profile/update"
+        assert request.headers["idempotency-key"] == "profile-update-1"
+        assert json.loads(request.read().decode("utf-8")) == payload
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "user_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "owner_agent": payload["owner_agent"],
+                "nick": "@partner.new",
+                "normalized_nick": "partner.new",
+                "public_address": "partner.new@ax",
+                "display_name": "Partner Updated",
+                "phone": None,
+                "email": None,
+                "updated_at": "2026-02-28T00:00:03Z",
+            },
+        )
+
+    client = _client(handler)
+    assert client.update_user_profile(payload, idempotency_key="profile-update-1")["display_name"] == "Partner Updated"
+
+
 @pytest.mark.parametrize(
     ("status_code", "expected_exception"),
     [
