@@ -984,6 +984,92 @@ def test_client_maps_rate_limit_error_with_retry_after() -> None:
     assert exc_info.value.body["message"] == "too many"
 
 
+def test_create_and_list_service_accounts_success() -> None:
+    org_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    workspace_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    service_account_id = "sa_123"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            assert request.url.path == "/v1/service-accounts"
+            body = json.loads(request.read().decode("utf-8"))
+            assert body["org_id"] == org_id
+            assert body["workspace_id"] == workspace_id
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "service_account": {
+                        "service_account_id": service_account_id,
+                        "org_id": org_id,
+                        "workspace_id": workspace_id,
+                    },
+                },
+            )
+        assert request.method == "GET"
+        assert request.url.path == "/v1/service-accounts"
+        assert request.url.params.get("org_id") == org_id
+        assert request.url.params.get("workspace_id") == workspace_id
+        return httpx.Response(200, json={"ok": True, "service_accounts": [{"service_account_id": service_account_id}]})
+
+    client = _client(handler)
+    created = client.create_service_account(
+        {
+            "org_id": org_id,
+            "workspace_id": workspace_id,
+            "name": "sdk-runner",
+            "created_by_actor_id": "actor_sdk",
+        }
+    )
+    assert created["service_account"]["service_account_id"] == service_account_id
+    listed = client.list_service_accounts(org_id=org_id, workspace_id=workspace_id)
+    assert listed["service_accounts"][0]["service_account_id"] == service_account_id
+
+
+def test_get_service_account_success() -> None:
+    service_account_id = "sa_abc"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/service-accounts/{service_account_id}"
+        return httpx.Response(200, json={"ok": True, "service_account": {"service_account_id": service_account_id}})
+
+    client = _client(handler)
+    fetched = client.get_service_account(service_account_id)
+    assert fetched["service_account"]["service_account_id"] == service_account_id
+
+
+def test_create_and_revoke_service_account_key_success() -> None:
+    service_account_id = "sa_abc"
+    key_id = "sak_abc"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/keys"):
+            assert request.method == "POST"
+            assert request.url.path == f"/v1/service-accounts/{service_account_id}/keys"
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "key": {
+                        "key_id": key_id,
+                        "service_account_id": service_account_id,
+                        "status": "active",
+                        "token": "axme_sa_token",
+                    },
+                },
+            )
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/service-accounts/{service_account_id}/keys/{key_id}/revoke"
+        return httpx.Response(200, json={"ok": True, "key": {"key_id": key_id, "status": "revoked"}})
+
+    client = _client(handler)
+    created = client.create_service_account_key(service_account_id, {"created_by_actor_id": "actor_sdk"})
+    assert created["key"]["key_id"] == key_id
+    revoked = client.revoke_service_account_key(service_account_id, key_id)
+    assert revoked["key"]["status"] == "revoked"
+
+
 def test_upsert_webhook_subscription_success() -> None:
     subscription = _webhook_subscription_payload()
     request_payload = {

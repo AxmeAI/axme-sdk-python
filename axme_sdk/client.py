@@ -557,6 +557,86 @@ class AxmeClient:
             retryable=idempotency_key is not None,
         )
 
+    def create_service_account(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/service-accounts",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_service_accounts(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {"org_id": org_id}
+        if workspace_id is not None:
+            params["workspace_id"] = workspace_id
+        return self._request_json(
+            "GET",
+            "/v1/service-accounts",
+            params=params,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def get_service_account(
+        self,
+        service_account_id: str,
+        *,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            f"/v1/service-accounts/{service_account_id}",
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def create_service_account_key(
+        self,
+        service_account_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/service-accounts/{service_account_id}/keys",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def revoke_service_account_key(
+        self,
+        service_account_id: str,
+        key_id: str,
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/service-accounts/{service_account_id}/keys/{key_id}/revoke",
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
     def upsert_webhook_subscription(
         self,
         payload: dict[str, Any],
