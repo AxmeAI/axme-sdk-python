@@ -167,7 +167,7 @@ def test_get_intent_success() -> None:
                 "ok": True,
                 "intent": {
                     "intent_id": intent_id,
-                    "status": "accepted",
+                    "status": "DELIVERED",
                     "created_at": "2026-02-28T00:00:00Z",
                     "intent_type": "notify.message.v1",
                     "correlation_id": "11111111-1111-1111-1111-111111111111",
@@ -259,7 +259,7 @@ def test_resolve_intent_success() -> None:
             200,
             json={
                 "ok": True,
-                "intent": {"intent_id": intent_id, "status": "done"},
+                "intent": {"intent_id": intent_id, "status": "COMPLETED"},
                 "event": {"intent_id": intent_id, "seq": 3, "event_type": "intent.completed", "status": "COMPLETED"},
                 "completion_delivery": {"delivered": False, "reason": "reply_to_not_set"},
             },
