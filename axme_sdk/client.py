@@ -637,6 +637,552 @@ class AxmeClient:
             retryable=idempotency_key is not None,
         )
 
+    def create_organization(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/organizations",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_organization(self, org_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/organizations/{org_id}", trace_id=trace_id, retryable=True)
+
+    def update_organization(
+        self,
+        org_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "PATCH",
+            f"/v1/organizations/{org_id}",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def create_workspace(
+        self,
+        org_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/organizations/{org_id}/workspaces",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_workspaces(self, org_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/organizations/{org_id}/workspaces", trace_id=trace_id, retryable=True)
+
+    def update_workspace(
+        self,
+        org_id: str,
+        workspace_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "PATCH",
+            f"/v1/organizations/{org_id}/workspaces/{workspace_id}",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_organization_members(
+        self,
+        org_id: str,
+        *,
+        workspace_id: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if workspace_id is not None:
+            params = {"workspace_id": workspace_id}
+        return self._request_json(
+            "GET",
+            f"/v1/organizations/{org_id}/members",
+            params=params,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def add_organization_member(
+        self,
+        org_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/organizations/{org_id}/members",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def update_organization_member(
+        self,
+        org_id: str,
+        member_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "PATCH",
+            f"/v1/organizations/{org_id}/members/{member_id}",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def remove_organization_member(
+        self,
+        org_id: str,
+        member_id: str,
+        *,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "DELETE",
+            f"/v1/organizations/{org_id}/members/{member_id}",
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def create_access_request(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/access-requests",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_access_requests(
+        self,
+        *,
+        org_id: str | None = None,
+        workspace_id: str | None = None,
+        state: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {}
+        if org_id is not None:
+            params["org_id"] = org_id
+        if workspace_id is not None:
+            params["workspace_id"] = workspace_id
+        if state is not None:
+            params["state"] = state
+        return self._request_json(
+            "GET",
+            "/v1/access-requests",
+            params=params or None,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def get_access_request(self, access_request_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/access-requests/{access_request_id}", trace_id=trace_id, retryable=True)
+
+    def review_access_request(
+        self,
+        access_request_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/access-requests/{access_request_id}/review",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def update_quota(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "PATCH",
+            "/v1/quotas",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_quota(self, *, org_id: str, workspace_id: str, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            "/v1/quotas",
+            params={"org_id": org_id, "workspace_id": workspace_id},
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def get_usage_summary(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str,
+        window: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {"org_id": org_id, "workspace_id": workspace_id}
+        if window is not None:
+            params["window"] = window
+        return self._request_json(
+            "GET",
+            "/v1/usage/summary",
+            params=params,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def get_usage_timeseries(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str,
+        window_days: int | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {"org_id": org_id, "workspace_id": workspace_id}
+        if window_days is not None:
+            params["window_days"] = str(window_days)
+        return self._request_json(
+            "GET",
+            "/v1/usage/timeseries",
+            params=params,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def create_principal(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/principals",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_principal(self, principal_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/principals/{principal_id}", trace_id=trace_id, retryable=True)
+
+    def bind_alias(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/aliases",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_aliases(self, *, org_id: str, workspace_id: str, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            "/v1/aliases",
+            params={"org_id": org_id, "workspace_id": workspace_id},
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def revoke_alias(
+        self,
+        alias_id: str,
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/aliases/{alias_id}/revoke",
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def resolve_alias(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str,
+        alias: str,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            "/v1/aliases/resolve",
+            params={"org_id": org_id, "workspace_id": workspace_id, "alias": alias},
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def register_routing_endpoint(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/routing/endpoints",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_routing_endpoints(self, *, org_id: str, workspace_id: str, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            "/v1/routing/endpoints",
+            params={"org_id": org_id, "workspace_id": workspace_id},
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def update_routing_endpoint(
+        self,
+        route_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "PATCH",
+            f"/v1/routing/endpoints/{route_id}",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def remove_routing_endpoint(self, route_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json(
+            "DELETE",
+            f"/v1/routing/endpoints/{route_id}",
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def resolve_routing(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/routing/resolve",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def upsert_transport_binding(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/transports/bindings",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_transport_bindings(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            "/v1/transports/bindings",
+            params={"org_id": org_id, "workspace_id": workspace_id},
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def remove_transport_binding(self, binding_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json(
+            "DELETE",
+            f"/v1/transports/bindings/{binding_id}",
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def submit_delivery(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            "/v1/deliveries",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def list_deliveries(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str,
+        principal_id: str | None = None,
+        status: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {"org_id": org_id, "workspace_id": workspace_id}
+        if principal_id is not None:
+            params["principal_id"] = principal_id
+        if status is not None:
+            params["status"] = status
+        return self._request_json(
+            "GET",
+            "/v1/deliveries",
+            params=params,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def get_delivery(self, delivery_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/deliveries/{delivery_id}", trace_id=trace_id, retryable=True)
+
+    def replay_delivery(
+        self,
+        delivery_id: str,
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "POST",
+            f"/v1/deliveries/{delivery_id}/replay",
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def update_billing_plan(
+        self,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "PATCH",
+            "/v1/billing/plan",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def get_billing_plan(self, *, org_id: str, workspace_id: str, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            "/v1/billing/plan",
+            params={"org_id": org_id, "workspace_id": workspace_id},
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def list_billing_invoices(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str,
+        status: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {"org_id": org_id, "workspace_id": workspace_id}
+        if status is not None:
+            params["status"] = status
+        return self._request_json(
+            "GET",
+            "/v1/billing/invoices",
+            params=params,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def get_billing_invoice(self, invoice_id: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        return self._request_json("GET", f"/v1/billing/invoices/{invoice_id}", trace_id=trace_id, retryable=True)
+
     def upsert_webhook_subscription(
         self,
         payload: dict[str, Any],
