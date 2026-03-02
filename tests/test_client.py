@@ -1070,6 +1070,148 @@ def test_create_and_revoke_service_account_key_success() -> None:
     assert revoked["key"]["status"] == "revoked"
 
 
+def test_enterprise_track_f_family_methods_success() -> None:
+    org_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    workspace_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    member_id = "mem_123"
+    access_request_id = "ar_123"
+    principal_id = "prn_123"
+    alias_id = "als_123"
+    route_id = "rte_123"
+    binding_id = "bnd_123"
+    delivery_id = "dlv_123"
+    invoice_id = "inv_123"
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        method_path = (request.method, request.url.path)
+        calls.append(method_path)
+        if method_path == ("POST", "/v1/organizations"):
+            return httpx.Response(200, json={"ok": True, "organization": {"org_id": org_id}})
+        if method_path == ("GET", f"/v1/organizations/{org_id}"):
+            return httpx.Response(200, json={"ok": True, "organization": {"org_id": org_id}})
+        if method_path == ("PATCH", f"/v1/organizations/{org_id}"):
+            return httpx.Response(200, json={"ok": True, "organization": {"org_id": org_id}})
+        if method_path == ("POST", f"/v1/organizations/{org_id}/workspaces"):
+            return httpx.Response(200, json={"ok": True, "workspace": {"workspace_id": workspace_id}})
+        if method_path == ("GET", f"/v1/organizations/{org_id}/workspaces"):
+            return httpx.Response(200, json={"ok": True, "workspaces": [{"workspace_id": workspace_id}]})
+        if method_path == ("PATCH", f"/v1/organizations/{org_id}/workspaces/{workspace_id}"):
+            return httpx.Response(200, json={"ok": True, "workspace": {"workspace_id": workspace_id}})
+        if method_path == ("GET", f"/v1/organizations/{org_id}/members"):
+            return httpx.Response(200, json={"ok": True, "members": [{"member_id": member_id}]})
+        if method_path == ("POST", f"/v1/organizations/{org_id}/members"):
+            return httpx.Response(200, json={"ok": True, "member": {"member_id": member_id}})
+        if method_path == ("PATCH", f"/v1/organizations/{org_id}/members/{member_id}"):
+            return httpx.Response(200, json={"ok": True, "member": {"member_id": member_id}})
+        if method_path == ("DELETE", f"/v1/organizations/{org_id}/members/{member_id}"):
+            return httpx.Response(200, json={"ok": True, "result": {"member_id": member_id}})
+        if method_path == ("POST", "/v1/access-requests"):
+            return httpx.Response(200, json={"ok": True, "access_request": {"access_request_id": access_request_id}})
+        if method_path == ("GET", "/v1/access-requests"):
+            return httpx.Response(200, json={"ok": True, "access_requests": [{"access_request_id": access_request_id}]})
+        if method_path == ("GET", f"/v1/access-requests/{access_request_id}"):
+            return httpx.Response(200, json={"ok": True, "access_request": {"access_request_id": access_request_id}})
+        if method_path == ("POST", f"/v1/access-requests/{access_request_id}/review"):
+            return httpx.Response(200, json={"ok": True, "access_request": {"access_request_id": access_request_id}})
+        if method_path == ("PATCH", "/v1/quotas"):
+            return httpx.Response(200, json={"ok": True, "quota_policy": {"org_id": org_id}})
+        if method_path == ("GET", "/v1/quotas"):
+            return httpx.Response(200, json={"ok": True, "quota_policy": {"org_id": org_id}})
+        if method_path == ("GET", "/v1/usage/summary"):
+            return httpx.Response(200, json={"ok": True, "summary": {"org_id": org_id}})
+        if method_path == ("GET", "/v1/usage/timeseries"):
+            return httpx.Response(200, json={"ok": True, "series": {"org_id": org_id}})
+        if method_path == ("POST", "/v1/principals"):
+            return httpx.Response(200, json={"ok": True, "principal": {"principal_id": principal_id}})
+        if method_path == ("GET", f"/v1/principals/{principal_id}"):
+            return httpx.Response(200, json={"ok": True, "principal": {"principal_id": principal_id}})
+        if method_path == ("POST", "/v1/aliases"):
+            return httpx.Response(200, json={"ok": True, "alias": {"alias_id": alias_id}})
+        if method_path == ("GET", "/v1/aliases"):
+            return httpx.Response(200, json={"ok": True, "aliases": [{"alias_id": alias_id}]})
+        if method_path == ("GET", "/v1/aliases/resolve"):
+            return httpx.Response(200, json={"ok": True, "resolution": {"principal": {"principal_id": principal_id}}})
+        if method_path == ("POST", f"/v1/aliases/{alias_id}/revoke"):
+            return httpx.Response(200, json={"ok": True, "alias": {"alias_id": alias_id, "status": "revoked"}})
+        if method_path == ("POST", "/v1/routing/endpoints"):
+            return httpx.Response(200, json={"ok": True, "route": {"route_id": route_id}})
+        if method_path == ("GET", "/v1/routing/endpoints"):
+            return httpx.Response(200, json={"ok": True, "routes": [{"route_id": route_id}]})
+        if method_path == ("PATCH", f"/v1/routing/endpoints/{route_id}"):
+            return httpx.Response(200, json={"ok": True, "route": {"route_id": route_id}})
+        if method_path == ("DELETE", f"/v1/routing/endpoints/{route_id}"):
+            return httpx.Response(200, json={"ok": True, "result": {"route_id": route_id}})
+        if method_path == ("POST", "/v1/routing/resolve"):
+            return httpx.Response(200, json={"ok": True, "resolution": {"selected_route": {"route_id": route_id}}})
+        if method_path == ("POST", "/v1/transports/bindings"):
+            return httpx.Response(200, json={"ok": True, "binding": {"binding_id": binding_id}})
+        if method_path == ("GET", "/v1/transports/bindings"):
+            return httpx.Response(200, json={"ok": True, "bindings": [{"binding_id": binding_id}]})
+        if method_path == ("DELETE", f"/v1/transports/bindings/{binding_id}"):
+            return httpx.Response(200, json={"ok": True, "result": {"binding_id": binding_id}})
+        if method_path == ("POST", "/v1/deliveries"):
+            return httpx.Response(200, json={"ok": True, "delivery": {"delivery_id": delivery_id}})
+        if method_path == ("GET", "/v1/deliveries"):
+            return httpx.Response(200, json={"ok": True, "deliveries": [{"delivery_id": delivery_id}]})
+        if method_path == ("GET", f"/v1/deliveries/{delivery_id}"):
+            return httpx.Response(200, json={"ok": True, "delivery": {"delivery_id": delivery_id}})
+        if method_path == ("POST", f"/v1/deliveries/{delivery_id}/replay"):
+            return httpx.Response(200, json={"ok": True, "delivery": {"delivery_id": "dlv_replay"}})
+        if method_path == ("PATCH", "/v1/billing/plan"):
+            return httpx.Response(200, json={"ok": True, "billing_plan": {"org_id": org_id}})
+        if method_path == ("GET", "/v1/billing/plan"):
+            return httpx.Response(200, json={"ok": True, "billing_plan": {"org_id": org_id}})
+        if method_path == ("GET", "/v1/billing/invoices"):
+            return httpx.Response(200, json={"ok": True, "invoices": [{"invoice_id": invoice_id}]})
+        if method_path == ("GET", f"/v1/billing/invoices/{invoice_id}"):
+            return httpx.Response(200, json={"ok": True, "invoice": {"invoice_id": invoice_id}})
+        raise AssertionError(f"unexpected request: {method_path}")
+
+    client = _client(handler)
+    assert client.create_organization({"org_id": org_id, "name": "Acme"})["ok"] is True
+    assert client.get_organization(org_id)["ok"] is True
+    assert client.update_organization(org_id, {"name": "Acme Updated"})["ok"] is True
+    assert client.create_workspace(org_id, {"workspace_id": workspace_id, "name": "Prod", "environment": "production"})["ok"] is True
+    assert client.list_workspaces(org_id)["ok"] is True
+    assert client.update_workspace(org_id, workspace_id, {"name": "Production"})["ok"] is True
+    assert client.list_organization_members(org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.add_organization_member(org_id, {"actor_id": "actor_member", "role": "member", "workspace_id": workspace_id})["ok"] is True
+    assert client.update_organization_member(org_id, member_id, {"status": "suspended"})["ok"] is True
+    assert client.remove_organization_member(org_id, member_id)["ok"] is True
+    assert client.create_access_request({"request_type": "workspace_join", "requester_actor_id": "actor_member"})["ok"] is True
+    assert client.list_access_requests(org_id=org_id, workspace_id=workspace_id, state="pending")["ok"] is True
+    assert client.get_access_request(access_request_id)["ok"] is True
+    assert client.review_access_request(access_request_id, {"decision": "approve", "reviewer_actor_id": "actor_admin"})["ok"] is True
+    assert client.update_quota({"org_id": org_id, "workspace_id": workspace_id, "dimensions": {}, "overage_mode": "block", "updated_by_actor_id": "actor_admin"})["ok"] is True
+    assert client.get_quota(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.get_usage_summary(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.get_usage_timeseries(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.create_principal({"org_id": org_id, "workspace_id": workspace_id, "principal_type": "service_agent"})["ok"] is True
+    assert client.get_principal(principal_id)["ok"] is True
+    assert client.bind_alias({"principal_id": principal_id, "alias": "agent://acme/billing", "alias_type": "service"})["ok"] is True
+    assert client.list_aliases(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.resolve_alias(org_id=org_id, workspace_id=workspace_id, alias="agent://acme/billing")["ok"] is True
+    assert client.revoke_alias(alias_id)["ok"] is True
+    assert client.register_routing_endpoint({"principal_id": principal_id, "transport_type": "http", "endpoint_url": "https://example", "auth_mode": "jwt"})["ok"] is True
+    assert client.list_routing_endpoints(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.update_routing_endpoint(route_id, {"priority": 1})["ok"] is True
+    assert client.remove_routing_endpoint(route_id)["ok"] is True
+    assert client.resolve_routing({"org_id": org_id, "workspace_id": workspace_id, "principal_id": principal_id})["ok"] is True
+    assert client.upsert_transport_binding({"principal_id": principal_id, "transport_type": "http", "transport_handle": "https://example"})["ok"] is True
+    assert client.list_transport_bindings(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.remove_transport_binding(binding_id)["ok"] is True
+    assert client.submit_delivery({"org_id": org_id, "workspace_id": workspace_id, "principal_id": principal_id, "payload": {"event": "test"}})["ok"] is True
+    assert client.list_deliveries(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.get_delivery(delivery_id)["ok"] is True
+    assert client.replay_delivery(delivery_id)["ok"] is True
+    assert client.update_billing_plan({"org_id": org_id, "workspace_id": workspace_id, "plan_code": "enterprise", "currency": "USD", "monthly_commit_minor": 100, "overage_unit_price_minor": 1, "updated_by_actor_id": "actor_admin"})["ok"] is True
+    assert client.get_billing_plan(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.list_billing_invoices(org_id=org_id, workspace_id=workspace_id)["ok"] is True
+    assert client.get_billing_invoice(invoice_id)["ok"] is True
+    assert len(calls) == 40
+
+
 def test_upsert_webhook_subscription_success() -> None:
     subscription = _webhook_subscription_payload()
     request_payload = {
