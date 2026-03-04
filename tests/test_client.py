@@ -274,6 +274,105 @@ def test_resolve_intent_success() -> None:
     assert response["event"]["event_type"] == "intent.completed"
 
 
+def test_resolve_intent_supports_owner_scope_and_control_headers() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/intents/{intent_id}/resolve"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        assert request.headers["x-owner-agent"] == "agent://owner"
+        assert request.headers["authorization"] == "Bearer scoped-token"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["expected_policy_generation"] == 3
+        return httpx.Response(
+            200,
+            json={"ok": True, "applied": False, "reason": "stale_policy_generation", "policy_generation": 4},
+        )
+
+    client = _client(handler, auto_trace_id=False)
+    response = client.resolve_intent(
+        intent_id,
+        {"status": "COMPLETED", "expected_policy_generation": 3},
+        owner_agent="agent://owner",
+        x_owner_agent="agent://owner",
+        authorization="Bearer scoped-token",
+        trace_id="trace-abc",
+    )
+    assert response["ok"] is True
+    assert response["applied"] is False
+
+
+def test_resume_intent_success() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/intents/{intent_id}/resume"
+        assert request.url.params.get("owner_agent") == "agent://owner"
+        assert request.headers["idempotency-key"] == "resume-1"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["approve_current_step"] is True
+        return httpx.Response(200, json={"ok": True, "applied": True, "intent": {"intent_id": intent_id}})
+
+    client = _client(handler)
+    response = client.resume_intent(
+        intent_id,
+        {"approve_current_step": True, "expected_policy_generation": 2},
+        owner_agent="agent://owner",
+        idempotency_key="resume-1",
+    )
+    assert response["ok"] is True
+    assert response["applied"] is True
+
+
+def test_update_intent_controls_success() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/intents/{intent_id}/controls"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["controls_patch"]["timeout_seconds"] == 120
+        return httpx.Response(200, json={"ok": True, "applied": True, "policy_generation": 5})
+
+    client = _client(handler)
+    response = client.update_intent_controls(
+        intent_id,
+        {"controls_patch": {"timeout_seconds": 120}, "expected_policy_generation": 5},
+    )
+    assert response["ok"] is True
+    assert response["applied"] is True
+    assert response["policy_generation"] == 5
+
+
+def test_update_intent_policy_success() -> None:
+    intent_id = "22222222-2222-4222-8222-222222222222"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == f"/v1/intents/{intent_id}/policy"
+        assert request.url.params.get("owner_agent") == "agent://creator"
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["grants_patch"]["delegate:agent://ops"]["allow"] == ["resume", "update_controls"]
+        assert body["envelope_patch"]["max_retry_count"] == 10
+        return httpx.Response(200, json={"ok": True, "applied": True, "policy_generation": 6})
+
+    client = _client(handler)
+    response = client.update_intent_policy(
+        intent_id,
+        {
+            "grants_patch": {"delegate:agent://ops": {"allow": ["resume", "update_controls"]}},
+            "envelope_patch": {"max_retry_count": 10},
+            "expected_policy_generation": 5,
+        },
+        owner_agent="agent://creator",
+    )
+    assert response["ok"] is True
+    assert response["applied"] is True
+    assert response["policy_generation"] == 6
+
+
 def test_observe_prefers_stream_and_yields_terminal_event() -> None:
     intent_id = "22222222-2222-4222-8222-222222222222"
 

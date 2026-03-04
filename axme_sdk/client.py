@@ -128,15 +128,126 @@ class AxmeClient:
         intent_id: str,
         payload: dict[str, Any],
         *,
+        owner_agent: str | None = None,
+        x_owner_agent: str | None = None,
+        authorization: str | None = None,
         idempotency_key: str | None = None,
         trace_id: str | None = None,
     ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        extra_headers: dict[str, str] | None = None
+        if x_owner_agent is not None or authorization is not None:
+            extra_headers = {}
+            if x_owner_agent is not None:
+                extra_headers["x-owner-agent"] = x_owner_agent
+            if authorization is not None:
+                extra_headers["authorization"] = authorization
         return self._request_json(
             "POST",
             f"/v1/intents/{intent_id}/resolve",
+            params=params,
             json_body=payload,
             idempotency_key=idempotency_key,
             trace_id=trace_id,
+            extra_headers=extra_headers,
+            retryable=idempotency_key is not None,
+        )
+
+    def resume_intent(
+        self,
+        intent_id: str,
+        payload: dict[str, Any],
+        *,
+        owner_agent: str | None = None,
+        x_owner_agent: str | None = None,
+        authorization: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        extra_headers: dict[str, str] | None = None
+        if x_owner_agent is not None or authorization is not None:
+            extra_headers = {}
+            if x_owner_agent is not None:
+                extra_headers["x-owner-agent"] = x_owner_agent
+            if authorization is not None:
+                extra_headers["authorization"] = authorization
+        return self._request_json(
+            "POST",
+            f"/v1/intents/{intent_id}/resume",
+            params=params,
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            extra_headers=extra_headers,
+            retryable=idempotency_key is not None,
+        )
+
+    def update_intent_controls(
+        self,
+        intent_id: str,
+        payload: dict[str, Any],
+        *,
+        owner_agent: str | None = None,
+        x_owner_agent: str | None = None,
+        authorization: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        extra_headers: dict[str, str] | None = None
+        if x_owner_agent is not None or authorization is not None:
+            extra_headers = {}
+            if x_owner_agent is not None:
+                extra_headers["x-owner-agent"] = x_owner_agent
+            if authorization is not None:
+                extra_headers["authorization"] = authorization
+        return self._request_json(
+            "POST",
+            f"/v1/intents/{intent_id}/controls",
+            params=params,
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            extra_headers=extra_headers,
+            retryable=idempotency_key is not None,
+        )
+
+    def update_intent_policy(
+        self,
+        intent_id: str,
+        payload: dict[str, Any],
+        *,
+        owner_agent: str | None = None,
+        x_owner_agent: str | None = None,
+        authorization: str | None = None,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, str] | None = None
+        if owner_agent is not None:
+            params = {"owner_agent": owner_agent}
+        extra_headers: dict[str, str] | None = None
+        if x_owner_agent is not None or authorization is not None:
+            extra_headers = {}
+            if x_owner_agent is not None:
+                extra_headers["x-owner-agent"] = x_owner_agent
+            if authorization is not None:
+                extra_headers["authorization"] = authorization
+        return self._request_json(
+            "POST",
+            f"/v1/intents/{intent_id}/policy",
+            params=params,
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            extra_headers=extra_headers,
             retryable=idempotency_key is not None,
         )
 
@@ -1338,12 +1449,15 @@ class AxmeClient:
         json_body: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
         trace_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
         retryable: bool,
     ) -> dict[str, Any]:
         headers: dict[str, str] | None = None
         normalized_trace_id = self._normalize_trace_id(trace_id)
-        if idempotency_key is not None or normalized_trace_id is not None:
+        if idempotency_key is not None or normalized_trace_id is not None or extra_headers is not None:
             headers = {}
+            if extra_headers is not None:
+                headers.update(extra_headers)
             if idempotency_key is not None:
                 headers["Idempotency-Key"] = idempotency_key
             if normalized_trace_id is not None:
