@@ -1,197 +1,203 @@
 # axme-sdk-python
 
-Official Python SDK for Axme APIs and workflows.
+**Official Python SDK for the AXME platform.** Send and manage intents, observe lifecycle events, work with inbox and approvals, and access the full enterprise admin surface — all from idiomatic Python.
 
-Canonical protocol positioning:
+> **Alpha** · API surface is stabilizing. Not recommended for production workloads yet.  
+> Bug reports, feedback, and alpha access → [hello@axme.ai](mailto:hello@axme.ai)
 
-- **AXP is the Intent Protocol (durable execution layer).**
+---
 
-## Status
+## What You Can Do With This SDK
 
-Initial v1 skeleton in progress.
+The AXME Python SDK gives you a fully typed client for the AXME platform. You can:
+
+- **Send intents** — create typed, durable actions that the platform guarantees to deliver
+- **Observe lifecycle** — stream real-time state transitions, waiting events, and delivery confirmations
+- **Approve or reject** — handle human-in-the-loop steps directly from Python code
+- **Control workflows** — pause, resume, cancel, update retry policies and reminders mid-flight
+- **Administer** — manage organizations, workspaces, service accounts, and access grants
+
+---
+
+## Install
+
+```bash
+pip install axme-sdk
+```
+
+For local development from source:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+---
 
 ## Quickstart
 
 ```python
 from axme_sdk import AxmeClient, AxmeClientConfig
 
-config = AxmeClientConfig(
-    base_url="https://gateway.example.com",
-    api_key="YOUR_API_KEY",
-    max_retries=2,
-    retry_backoff_seconds=0.2,
+client = AxmeClient(
+    AxmeClientConfig(
+        base_url="https://gateway.axme.ai",
+        api_key="YOUR_API_KEY",
+    )
 )
 
-with AxmeClient(config) as client:
-    print(client.health(trace_id="trace-quickstart-001"))
-    result = client.create_intent(
-        {
-            "intent_type": "notify.message.v1",
-            "from_agent": "agent://example/sender",
-            "to_agent": "agent://example/receiver",
-            "payload": {"text": "hello"},
-        },
-        correlation_id="11111111-1111-1111-1111-111111111111",
-        idempotency_key="create-intent-001",
-    )
-    print(result)
-    print(client.get_intent(result["intent_id"])["intent"]["status"])
-    sent_intent_id = client.send_intent(
-        {
-            "intent_type": "notify.message.v1",
-            "from_agent": "agent://example/sender",
-            "to_agent": "agent://example/receiver",
-            "payload": {"text": "hello again"},
-        },
-        idempotency_key="send-intent-001",
-    )
-    print(sent_intent_id)
-    print(client.list_intent_events(sent_intent_id, since=0))
-    for event in client.observe(sent_intent_id, since=0, wait_seconds=10):
-        print(event["event_type"], event["status"])
-        if event["status"] in {"COMPLETED", "FAILED", "CANCELED"}:
-            break
-    terminal = client.wait_for(sent_intent_id, timeout_seconds=30)
-    print(terminal["status"])
-    inbox = client.list_inbox(owner_agent="agent://example/receiver", trace_id="trace-inbox-001")
-    print(inbox)
-    thread = client.get_inbox_thread("11111111-1111-4111-8111-111111111111", owner_agent="agent://example/receiver")
-    print(thread["thread"]["status"])
-    changes = client.list_inbox_changes(owner_agent="agent://example/receiver", limit=50)
-    print(changes["next_cursor"], changes["has_more"])
-    replied = client.reply_inbox_thread(
-        "11111111-1111-4111-8111-111111111111",
-        message="Acknowledged",
-        owner_agent="agent://example/receiver",
-        idempotency_key="reply-001",
-    )
-    print(replied)
-    delegated = client.delegate_inbox_thread(
-        "11111111-1111-4111-8111-111111111111",
-        {"delegate_to": "agent://example/delegate", "note": "handoff"},
-        owner_agent="agent://example/receiver",
-        idempotency_key="delegate-001",
-    )
-    print(delegated["thread"]["status"])
-    approved = client.approve_inbox_thread(
-        "11111111-1111-4111-8111-111111111111",
-        {"comment": "approved"},
-        owner_agent="agent://example/receiver",
-        idempotency_key="approve-001",
-    )
-    print(approved["thread"]["status"])
-    rejected = client.reject_inbox_thread(
-        "11111111-1111-4111-8111-111111111111",
-        {"comment": "rejected"},
-        owner_agent="agent://example/receiver",
-        idempotency_key="reject-001",
-    )
-    print(rejected["thread"]["status"])
-    deleted = client.delete_inbox_messages(
-        "11111111-1111-4111-8111-111111111111",
-        {"mode": "self", "limit": 1},
-        owner_agent="agent://example/receiver",
-        idempotency_key="delete-001",
-    )
-    print(deleted["deleted_count"])
-    approval = client.decide_approval(
-        "55555555-5555-4555-8555-555555555555",
-        decision="approve",
-        comment="Looks good",
-        idempotency_key="approval-001",
-    )
-    print(approval["approval"]["decision"])
-    capabilities = client.get_capabilities()
-    print(capabilities["supported_intent_types"])
-    invite = client.create_invite(
-        {"owner_agent": "agent://example/receiver", "recipient_hint": "Partner A", "ttl_seconds": 3600},
-        idempotency_key="invite-create-001",
-    )
-    print(invite["token"])
-    invite_details = client.get_invite(invite["token"])
-    print(invite_details["status"])
-    accepted = client.accept_invite(
-        invite["token"],
-        {"nick": "@PartnerA.User", "display_name": "Partner A"},
-        idempotency_key="invite-accept-001",
-    )
-    print(accepted["public_address"])
-    media_upload = client.create_media_upload(
-        {
-            "owner_agent": "agent://example/receiver",
-            "filename": "contract.pdf",
-            "mime_type": "application/pdf",
-            "size_bytes": 12345,
-        },
-        idempotency_key="media-create-001",
-    )
-    print(media_upload["upload_id"])
-    media_state = client.get_media_upload(media_upload["upload_id"])
-    print(media_state["upload"]["status"])
-    finalized = client.finalize_media_upload(
-        {"upload_id": media_upload["upload_id"], "size_bytes": 12345},
-        idempotency_key="media-finalize-001",
-    )
-    print(finalized["status"])
-    schema = client.upsert_schema(
-        {
-            "semantic_type": "axme.calendar.schedule.v1",
-            "schema_json": {"type": "object", "required": ["date"], "properties": {"date": {"type": "string"}}},
-            "compatibility_mode": "strict",
-        },
-        idempotency_key="schema-upsert-001",
-    )
-    print(schema["schema"]["schema_hash"])
-    schema_get = client.get_schema("axme.calendar.schedule.v1")
-    print(schema_get["schema"]["semantic_type"])
-    registered = client.register_nick(
-        {"nick": "@partner.user", "display_name": "Partner User"},
-        idempotency_key="nick-register-001",
-    )
-    print(registered["owner_agent"])
-    nick_check = client.check_nick("@partner.user")
-    print(nick_check["available"])
-    renamed = client.rename_nick(
-        {"owner_agent": registered["owner_agent"], "nick": "@partner.new"},
-        idempotency_key="nick-rename-001",
-    )
-    print(renamed["public_address"])
-    profile = client.get_user_profile(registered["owner_agent"])
-    print(profile["updated_at"])
-    profile_updated = client.update_user_profile(
-        {"owner_agent": registered["owner_agent"], "display_name": "Partner User Updated"},
-        idempotency_key="profile-update-001",
-    )
-    print(profile_updated["display_name"])
-    subscription = client.upsert_webhook_subscription(
-        {
-            "callback_url": "https://integrator.example/webhooks/axme",
-            "event_types": ["inbox.thread_created"],
-            "active": True,
-        }
-    )
-    print(subscription)
-    events = client.publish_webhook_event(
-        {"event_type": "inbox.thread_created", "source": "sdk-example", "payload": {"thread_id": "t-1"}},
-        owner_agent="agent://example/receiver",
-    )
-    print(events["event_id"])
-    mcp_info = client.mcp_initialize()
-    print(mcp_info["protocolVersion"])
-    tools = client.mcp_list_tools()
-    print(len(tools.get("tools", [])))
-    mcp_result = client.mcp_call_tool(
-        "axme.send",
-        arguments={"to": "agent://example/receiver", "text": "hello from MCP"},
-        owner_agent="agent://example/receiver",
-        idempotency_key="mcp-send-001",
-    )
-    print(mcp_result.get("status"))
+# Check connectivity
+print(client.health())
+
+# Send an intent
+intent = client.create_intent(
+    {
+        "intent_type": "order.fulfillment.v1",
+        "payload": {"order_id": "ord_123", "priority": "high"},
+        "owner_agent": "agent://fulfillment-service",
+    },
+    idempotency_key="fulfill-ord-123-001",
+)
+print(intent["intent_id"], intent["status"])
+
+# Wait for resolution
+resolved = client.wait_for(intent["intent_id"], terminal_states={"RESOLVED", "CANCELLED"})
+print(resolved["status"])
 ```
 
-## Development
+---
+
+## API Method Families
+
+The SDK covers the full public API surface organized into families. The map below shows all method groups and how they relate to the platform's intent lifecycle.
+
+![API Method Family Map](docs/diagrams/01-api-method-family-map.svg)
+
+*Each family corresponds to a segment of the lifecycle or an operational domain. Intents and inbox are D1 (core). Approvals, schemas, and media are D2. Enterprise admin and service accounts are D3.*
+
+---
+
+## Create and Control Sequence
+
+From calling `create_intent()` to receiving a delivery confirmation — the full interaction sequence with the platform:
+
+![Create and Control Sequence](docs/diagrams/02-create-and-control-sequence.svg)
+
+*The SDK sets the `Idempotency-Key` and `X-Correlation-Id` headers automatically. The gateway validates, persists, and returns the intent in `PENDING` state. The scheduler picks it up and drives delivery.*
+
+---
+
+## Idempotency and Replay Protection
+
+Every mutating call in the SDK accepts an optional `idempotency_key`. Use it for all operations you might retry.
+
+![Idempotency and Replay Protection](docs/diagrams/03-idempotency-and-replay-protection.svg)
+
+*Duplicate requests with the same key return the original response without re-executing. Keys expire after 24 hours. The SDK will warn if you reuse a key with different parameters.*
+
+```python
+# Safe to call multiple times — only executes once
+intent = client.create_intent(payload, idempotency_key="my-unique-key-001")
+```
+
+---
+
+## Observing Intent Events
+
+The SDK provides a streaming event observer that delivers real-time lifecycle events over SSE:
+
+```python
+for event in client.observe(intent["intent_id"]):
+    print(event["event_type"], event["status"])
+    if event["status"] in {"RESOLVED", "CANCELLED", "EXPIRED"}:
+        break
+```
+
+---
+
+## Approvals and Human-in-the-Loop
+
+```python
+# Fetch pending approvals for an agent
+pending = client.list_inbox({"owner_agent": "agent://manager", "status": "PENDING"})
+
+for item in pending["items"]:
+    # Approve with a note
+    client.resolve_approval(item["intent_id"], {"decision": "approved", "note": "LGTM"})
+```
+
+---
+
+## Workflow Controls
+
+Update retry policy, reminders, or TTL on a live intent without cancelling it:
+
+```python
+client.update_intent_controls(
+    intent_id,
+    {
+        "controls": {
+            "max_retries": 5,
+            "retry_delay_seconds": 30,
+            "reminders": [{"offset_seconds": 3600, "note": "1h reminder"}],
+        }
+    },
+    policy_generation=intent["policy_generation"],
+)
+```
+
+---
+
+## SDK Diagrams
+
+The SDK docs folder contains diagrams for the API patterns used by this client:
+
+| Diagram | Description |
+|---|---|
+| [`01-api-method-family-map`](docs/diagrams/01-api-method-family-map.svg) | Full API family overview |
+| [`02-create-and-control-sequence`](docs/diagrams/02-create-and-control-sequence.svg) | Intent creation and control flow |
+| [`03-idempotency-and-replay-protection`](docs/diagrams/03-idempotency-and-replay-protection.svg) | Idempotency protocol |
+
+---
+
+## Tests
 
 ```bash
-python -m pip install -e ".[dev]"
 pytest
 ```
+
+---
+
+## Repository Structure
+
+```
+axme-sdk-python/
+├── axme_sdk/
+│   ├── client.py              # AxmeClient — all API methods
+│   ├── config.py              # AxmeClientConfig
+│   └── exceptions.py          # AxmeAPIError and subclasses
+├── tests/                     # Unit and integration tests
+└── docs/
+    └── diagrams/              # Diagram copies for README embedding
+```
+
+---
+
+## Related Repositories
+
+| Repository | Role |
+|---|---|
+| [axme-docs](https://github.com/AxmeAI/axme-docs) | Full API reference and integration guides |
+| [axme-spec](https://github.com/AxmeAI/axme-spec) | Schema contracts this SDK implements |
+| [axme-conformance](https://github.com/AxmeAI/axme-conformance) | Conformance suite that validates this SDK |
+| [axme-examples](https://github.com/AxmeAI/axme-examples) | Runnable examples using this SDK |
+| [axme-sdk-typescript](https://github.com/AxmeAI/axme-sdk-typescript) | TypeScript equivalent |
+| [axme-sdk-go](https://github.com/AxmeAI/axme-sdk-go) | Go equivalent |
+
+---
+
+## Contributing & Contact
+
+- Bug reports and feature requests: open an issue in this repository
+- Alpha program access and integration questions: [hello@axme.ai](mailto:hello@axme.ai)
+- Security disclosures: see [SECURITY.md](SECURITY.md)
+- Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
