@@ -22,9 +22,10 @@ The AXME Python SDK gives you a fully typed client for the AXME platform. You ca
 ## Install
 
 ```bash
-pip install axme-sdk
+python -m pip install "git+https://github.com/AxmeAI/axme-sdk-python.git"
 ```
 
+PyPI publication target: `axme` (pending registry credentials and first public release).
 For local development from source:
 
 ```bash
@@ -118,11 +119,18 @@ for event in client.observe(intent["intent_id"]):
 
 ```python
 # Fetch pending approvals for an agent
-pending = client.list_inbox({"owner_agent": "agent://manager", "status": "PENDING"})
+pending = client.list_inbox(owner_agent="agent://manager")
 
-for item in pending["items"]:
-    # Approve with a note
-    client.resolve_approval(item["intent_id"], {"decision": "approved", "note": "LGTM"})
+for item in pending.get("items", []):
+    thread_id = item.get("thread_id")
+    if not thread_id:
+        continue
+    # Approve the inbox thread with a note
+    client.approve_inbox_thread(
+        thread_id,
+        {"note": "LGTM"},
+        owner_agent="agent://manager",
+    )
 ```
 
 ---
