@@ -5,8 +5,8 @@ import json
 import httpx
 import pytest
 
-from axme_sdk import AxmeClient, AxmeClientConfig
-from axme_sdk.exceptions import AxmeAuthError, AxmeHttpError, AxmeRateLimitError, AxmeValidationError
+from axme import AxmeClient, AxmeClientConfig
+from axme.exceptions import AxmeAuthError, AxmeHttpError, AxmeRateLimitError, AxmeValidationError
 
 
 def _transport(handler):
@@ -17,6 +17,8 @@ def _client(
     handler,
     api_key: str = "token",
     *,
+    actor_token: str | None = None,
+    bearer_token: str | None = None,
     max_retries: int = 2,
     retry_backoff_seconds: float = 0.0,
     auto_trace_id: bool = True,
@@ -24,17 +26,22 @@ def _client(
     cfg = AxmeClientConfig(
         base_url="https://api.axme.test",
         api_key=api_key,
+        actor_token=actor_token,
+        bearer_token=bearer_token,
         max_retries=max_retries,
         retry_backoff_seconds=retry_backoff_seconds,
         auto_trace_id=auto_trace_id,
     )
+    default_headers = {
+        "x-api-key": cfg.api_key,
+        "Content-Type": "application/json",
+    }
+    if cfg.actor_token:
+        default_headers["Authorization"] = f"Bearer {cfg.actor_token}"
     http_client = httpx.Client(
         transport=_transport(handler),
         base_url=cfg.base_url,
-        headers={
-            "Authorization": f"Bearer {cfg.api_key}",
-            "Content-Type": "application/json",
-        },
+        headers=default_headers,
     )
     return AxmeClient(cfg, http_client=http_client)
 
@@ -80,7 +87,7 @@ def test_health_success() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
         assert request.url.path == "/health"
-        assert request.headers["Authorization"] == "Bearer token"
+        assert request.headers["x-api-key"] == "token"
         return httpx.Response(200, json={"ok": True})
 
     client = _client(handler)
@@ -94,6 +101,26 @@ def test_health_propagates_trace_id_header() -> None:
 
     client = _client(handler, auto_trace_id=False)
     assert client.health(trace_id="trace-123") == {"ok": True}
+
+
+def test_health_includes_actor_token_authorization_when_configured() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["x-api-key"] == "platform-key"
+        assert request.headers["authorization"] == "Bearer actor-token"
+        return httpx.Response(200, json={"ok": True})
+
+    client = _client(handler, api_key="platform-key", actor_token="actor-token")
+    assert client.health() == {"ok": True}
+
+
+def test_client_config_rejects_conflicting_actor_token_aliases() -> None:
+    with pytest.raises(ValueError, match="actor_token and bearer_token must match"):
+        AxmeClientConfig(
+            base_url="https://api.axme.test",
+            api_key="platform-key",
+            actor_token="token-a",
+            bearer_token="token-b",
+        )
 
 
 def test_create_intent_success() -> None:
@@ -487,7 +514,7 @@ def test_reply_inbox_thread_success() -> None:
         assert request.url.path == f"/v1/inbox/{thread_id}/reply"
         assert request.url.params.get("owner_agent") == "agent://owner"
         assert request.headers["idempotency-key"] == "reply-1"
-        assert request.read() == b'{"message":"ack"}'
+        assert json.loads(request.read().decode("utf-8")) == {"message": "ack"}
         return httpx.Response(200, json={"ok": True, "thread": thread})
 
     client = _client(handler)
@@ -631,7 +658,10 @@ def test_decide_approval_success() -> None:
         assert request.method == "POST"
         assert request.url.path == f"/v1/approvals/{approval_id}/decision"
         assert request.headers["idempotency-key"] == "approval-1"
-        assert request.read() == b'{"decision":"approve","comment":"approved"}'
+        assert json.loads(request.read().decode("utf-8")) == {
+            "decision": "approve",
+            "comment": "approved",
+        }
         return httpx.Response(
             200,
             json={
@@ -1323,7 +1353,7 @@ def test_upsert_webhook_subscription_success() -> None:
         assert request.method == "POST"
         assert request.url.path == "/v1/webhooks/subscriptions"
         assert request.headers["idempotency-key"] == "wh-1"
-        assert request.read() == b'{"callback_url":"https://integrator.example/webhooks/axme","event_types":["inbox.thread_created"],"active":true}'
+        assert json.loads(request.read().decode("utf-8")) == request_payload
         return httpx.Response(200, json={"ok": True, "subscription": subscription})
 
     client = _client(handler)
@@ -1555,7 +1585,7 @@ def test_mcp_list_tools_and_call_tool_with_schema_validation() -> None:
         transport=_transport(handler),
         base_url=cfg.base_url,
         headers={
-            "Authorization": f"Bearer {cfg.api_key}",
+            "x-api-key": cfg.api_key,
             "Content-Type": "application/json",
         },
     )
