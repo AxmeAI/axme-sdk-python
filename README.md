@@ -26,7 +26,6 @@ python -m pip install "git+https://github.com/AxmeAI/axme-sdk-python.git"
 ```
 
 PyPI publication target: `axme` (pending registry credentials and first public release).
-
 For local development from source:
 
 ```bash
