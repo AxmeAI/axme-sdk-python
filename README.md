@@ -22,10 +22,9 @@ The AXME Python SDK gives you a fully typed client for the AXME platform. You ca
 ## Install
 
 ```bash
-python -m pip install "git+https://github.com/AxmeAI/axme-sdk-python.git"
+pip install axme
 ```
 
-PyPI publication target: `axme` (pending registry credentials and first public release).
 For local development from source:
 
 ```bash
