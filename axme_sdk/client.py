@@ -21,6 +21,8 @@ from .exceptions import (
 class AxmeClientConfig:
     base_url: str
     api_key: str
+    actor_token: str | None = None
+    bearer_token: str | None = None
     timeout_seconds: float = 15.0
     max_retries: int = 2
     retry_backoff_seconds: float = 0.2
@@ -30,6 +32,12 @@ class AxmeClientConfig:
     mcp_protocol_version: str = "2024-11-05"
     mcp_observer: Callable[[dict[str, Any]], None] | None = None
 
+    def __post_init__(self) -> None:
+        if self.actor_token and self.bearer_token and self.actor_token != self.bearer_token:
+            raise ValueError("actor_token and bearer_token must match when both are provided")
+        if self.actor_token is None and self.bearer_token is not None:
+            object.__setattr__(self, "actor_token", self.bearer_token)
+
 
 class AxmeClient:
     def __init__(self, config: AxmeClientConfig, *, http_client: httpx.Client | None = None) -> None:
@@ -38,10 +46,7 @@ class AxmeClient:
         self._http = http_client or httpx.Client(
             base_url=self._config.base_url.rstrip("/"),
             timeout=self._config.timeout_seconds,
-            headers={
-                "Authorization": f"Bearer {self._config.api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=self._default_headers(),
         )
         self._mcp_tool_schemas: dict[str, dict[str, Any]] = {}
 
@@ -1626,6 +1631,15 @@ class AxmeClient:
         if observer is None:
             return
         observer(event)
+
+    def _default_headers(self) -> dict[str, str]:
+        headers = {
+            "x-api-key": self._config.api_key,
+            "Content-Type": "application/json",
+        }
+        if self._config.actor_token:
+            headers["Authorization"] = f"Bearer {self._config.actor_token}"
+        return headers
 
     def _sleep_before_retry(self, attempt_idx: int, *, retry_after: int | None) -> None:
         if retry_after is not None:

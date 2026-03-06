@@ -7,6 +7,43 @@
 
 ---
 
+## What Is AXME?
+
+AXME is a coordination infrastructure for durable execution of long-running intents across distributed systems.
+
+It provides a model for executing **intents** — requests that may take minutes, hours, or longer to complete — across services, agents, and human participants.
+
+## AXP — the Intent Protocol
+
+At the core of AXME is **AXP (Intent Protocol)** — an open protocol that defines contracts and lifecycle rules for intent processing.
+
+AXP can be implemented independently.  
+The open part of the platform includes:
+
+- the protocol specification and schemas
+- SDKs and CLI for integration
+- conformance tests
+- implementation and integration documentation
+
+## AXME Cloud
+
+**AXME Cloud** is the managed service that runs AXP in production together with **The Registry** (identity and routing).
+
+It removes operational complexity by providing:
+
+- reliable intent delivery and retries  
+- lifecycle management for long-running operations  
+- handling of timeouts, waits, reminders, and escalation  
+- observability of intent status and execution history  
+
+State and events can be accessed through:
+
+- API and SDKs  
+- event streams and webhooks  
+- the cloud console
+
+---
+
 ## What You Can Do With This SDK
 
 The AXME Python SDK gives you a fully typed client for the AXME platform. You can:
@@ -25,6 +62,8 @@ The AXME Python SDK gives you a fully typed client for the AXME platform. You ca
 pip install axme
 ```
 
+Primary import path is `axme` (legacy `axme_sdk` remains as compatibility alias).
+
 For local development from source:
 
 ```bash
@@ -36,12 +75,13 @@ python -m pip install -e ".[dev]"
 ## Quickstart
 
 ```python
-from axme_sdk import AxmeClient, AxmeClientConfig
+from axme import AxmeClient, AxmeClientConfig
 
 client = AxmeClient(
     AxmeClientConfig(
         base_url="https://gateway.axme.ai",
-        api_key="YOUR_API_KEY",
+        api_key="YOUR_PLATFORM_API_KEY",  # sent as x-api-key
+        actor_token="OPTIONAL_USER_OR_SESSION_TOKEN",  # sent as Authorization: Bearer
     )
 )
 
@@ -178,6 +218,9 @@ pytest
 
 ```
 axme-sdk-python/
+├── axme/
+│   ├── client.py              # Canonical public import path
+│   └── exceptions.py          # Canonical exception import path
 ├── axme_sdk/
 │   ├── client.py              # AxmeClient — all API methods
 │   ├── config.py              # AxmeClientConfig
