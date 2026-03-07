@@ -17,10 +17,13 @@ from .exceptions import (
 )
 
 
+DEFAULT_BASE_URL = "https://api.cloud.axme.ai"
+
+
 @dataclass(frozen=True)
 class AxmeClientConfig:
-    base_url: str
-    api_key: str
+    base_url: str = DEFAULT_BASE_URL
+    api_key: str = ""
     actor_token: str | None = None
     bearer_token: str | None = None
     timeout_seconds: float = 15.0
@@ -33,6 +36,10 @@ class AxmeClientConfig:
     mcp_observer: Callable[[dict[str, Any]], None] | None = None
 
     def __post_init__(self) -> None:
+        if not self.base_url or not self.base_url.strip():
+            raise ValueError("base_url must be a non-empty string")
+        if not self.api_key or not self.api_key.strip():
+            raise ValueError("api_key must be a non-empty string")
         if self.actor_token and self.bearer_token and self.actor_token != self.bearer_token:
             raise ValueError("actor_token and bearer_token must match when both are provided")
         if self.actor_token is None and self.bearer_token is not None:
