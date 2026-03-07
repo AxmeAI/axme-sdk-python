@@ -79,9 +79,10 @@ from axme import AxmeClient, AxmeClientConfig
 
 client = AxmeClient(
     AxmeClientConfig(
-        base_url="https://gateway.axme.ai",
-        api_key="YOUR_PLATFORM_API_KEY",  # sent as x-api-key
+        api_key="AXME_API_KEY",  # sent as x-api-key
         actor_token="OPTIONAL_USER_OR_SESSION_TOKEN",  # sent as Authorization: Bearer
+        # Optional override (defaults to https://api.cloud.axme.ai):
+        # base_url="https://staging-api.cloud.axme.ai",
     )
 )
 
@@ -103,6 +104,26 @@ print(intent["intent_id"], intent["status"])
 resolved = client.wait_for(intent["intent_id"], terminal_states={"RESOLVED", "CANCELLED"})
 print(resolved["status"])
 ```
+
+---
+
+## Minimal Language-Native Example
+
+Short basic submit/get example (about 25 lines):
+
+- [`examples/basic_submit.py`](examples/basic_submit.py)
+
+Run:
+
+```bash
+export AXME_API_KEY="axme_sa_..."
+python examples/basic_submit.py
+```
+
+Full runnable scenario set lives in:
+
+- Cloud: <https://github.com/AxmeAI/axme-examples/tree/main/cloud>
+- Protocol-only: <https://github.com/AxmeAI/axme-examples/tree/main/protocol>
 
 ---
 
@@ -226,6 +247,8 @@ axme-sdk-python/
 │   ├── config.py              # AxmeClientConfig
 │   └── exceptions.py          # AxmeAPIError and subclasses
 ├── tests/                     # Unit and integration tests
+├── examples/
+│   └── basic_submit.py        # Minimal language-native quickstart
 └── docs/
     └── diagrams/              # Diagram copies for README embedding
 ```

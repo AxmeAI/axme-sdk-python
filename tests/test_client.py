@@ -123,6 +123,11 @@ def test_client_config_rejects_conflicting_actor_token_aliases() -> None:
         )
 
 
+def test_client_config_uses_default_base_url_when_not_provided() -> None:
+    cfg = AxmeClientConfig(api_key="platform-key")
+    assert cfg.base_url == "https://api.cloud.axme.ai"
+
+
 def test_create_intent_success() -> None:
     payload = {
         "intent_type": "notify.message.v1",
