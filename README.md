@@ -227,6 +227,33 @@ The SDK docs folder contains diagrams for the API patterns used by this client:
 
 ---
 
+## MCP (Model Context Protocol)
+
+The Python SDK includes a built-in MCP endpoint client for gateway-hosted MCP sessions:
+
+```python
+# Initialize an MCP session
+init = client.mcp_initialize()
+print(init["serverInfo"])
+
+# List available tools
+tools = client.mcp_list_tools()
+for tool in tools.get("tools", []):
+    print(tool["name"])
+
+# Call a tool
+result = client.mcp_call_tool("create_intent", arguments={
+    "intent_type": "order.fulfillment.v1",
+    "payload": {"order_id": "ord_123"},
+    "owner_agent": "agent://fulfillment-service",
+})
+print(result)
+```
+
+MCP calls go to `/mcp` by default. Override with `mcp_endpoint_path` in `AxmeClientConfig`.
+
+---
+
 ## Tests
 
 ```bash
