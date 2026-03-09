@@ -131,7 +131,7 @@ Full runnable scenario set lives in:
 
 The SDK covers the full public API surface organized into families. The map below shows all method groups and how they relate to the platform's intent lifecycle.
 
-![API Method Family Map](docs/diagrams/01-api-method-family-map.svg)
+![API Method Family Map](https://raw.githubusercontent.com/AxmeAI/axme-docs/main/docs/diagrams/api/01-api-method-family-map.svg)
 
 *Each family corresponds to a segment of the lifecycle or an operational domain. Intents and inbox are D1 (core). Approvals, schemas, and media are D2. Enterprise admin and service accounts are D3.*
 
@@ -141,7 +141,7 @@ The SDK covers the full public API surface organized into families. The map belo
 
 From calling `create_intent()` to receiving a delivery confirmation — the full interaction sequence with the platform:
 
-![Create and Control Sequence](docs/diagrams/02-create-and-control-sequence.svg)
+![Create and Control Sequence](https://raw.githubusercontent.com/AxmeAI/axme-docs/main/docs/diagrams/intents/02-create-and-control-sequence.svg)
 
 *The SDK sets the `Idempotency-Key` and `X-Correlation-Id` headers automatically. The gateway validates, persists, and returns the intent in `PENDING` state. The scheduler picks it up and drives delivery.*
 
@@ -151,7 +151,7 @@ From calling `create_intent()` to receiving a delivery confirmation — the full
 
 Every mutating call in the SDK accepts an optional `idempotency_key`. Use it for all operations you might retry.
 
-![Idempotency and Replay Protection](docs/diagrams/03-idempotency-and-replay-protection.svg)
+![Idempotency and Replay Protection](https://raw.githubusercontent.com/AxmeAI/axme-docs/main/docs/diagrams/protocol/03-idempotency-and-replay-protection.svg)
 
 *Duplicate requests with the same key return the original response without re-executing. Keys expire after 24 hours. The SDK will warn if you reuse a key with different parameters.*
 
@@ -221,9 +221,9 @@ The SDK docs folder contains diagrams for the API patterns used by this client:
 
 | Diagram | Description |
 |---|---|
-| [`01-api-method-family-map`](docs/diagrams/01-api-method-family-map.svg) | Full API family overview |
-| [`02-create-and-control-sequence`](docs/diagrams/02-create-and-control-sequence.svg) | Intent creation and control flow |
-| [`03-idempotency-and-replay-protection`](docs/diagrams/03-idempotency-and-replay-protection.svg) | Idempotency protocol |
+| [`01-api-method-family-map`](https://raw.githubusercontent.com/AxmeAI/axme-docs/main/docs/diagrams/api/01-api-method-family-map.svg) | Full API family overview |
+| [`02-create-and-control-sequence`](https://raw.githubusercontent.com/AxmeAI/axme-docs/main/docs/diagrams/intents/02-create-and-control-sequence.svg) | Intent creation and control flow |
+| [`03-idempotency-and-replay-protection`](https://raw.githubusercontent.com/AxmeAI/axme-docs/main/docs/diagrams/protocol/03-idempotency-and-replay-protection.svg) | Idempotency protocol |
 
 ---
 
@@ -277,7 +277,6 @@ axme-sdk-python/
 ├── examples/
 │   └── basic_submit.py        # Minimal language-native quickstart
 └── docs/
-    └── diagrams/              # Diagram copies for README embedding
 ```
 
 ---
