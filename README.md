@@ -89,19 +89,25 @@ client = AxmeClient(
 # Check connectivity
 print(client.health())
 
-# Send an intent
+# Send an intent to a registered agent address
 intent = client.create_intent(
     {
         "intent_type": "order.fulfillment.v1",
+        "to_agent": "agent://acme-corp/production/fulfillment-service",
         "payload": {"order_id": "ord_123", "priority": "high"},
-        "owner_agent": "agent://fulfillment-service",
     },
     idempotency_key="fulfill-ord-123-001",
+    correlation_id="corr-ord-123-001",
 )
 print(intent["intent_id"], intent["status"])
 
+# List registered agent addresses in your workspace
+agents = client.list_agents(org_id="acme-corp-uuid", workspace_id="prod-ws-uuid")
+for agent in agents["agents"]:
+    print(agent["address"], agent["status"])
+
 # Wait for resolution
-resolved = client.wait_for(intent["intent_id"], terminal_states={"RESOLVED", "CANCELLED"})
+resolved = client.wait_for(intent["intent_id"])
 print(resolved["status"])
 ```
 

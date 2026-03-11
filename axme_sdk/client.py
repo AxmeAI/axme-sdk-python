@@ -744,6 +744,44 @@ class AxmeClient:
             retryable=idempotency_key is not None,
         )
 
+    def list_agents(
+        self,
+        *,
+        org_id: str,
+        workspace_id: str,
+        limit: int | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List registered agent addresses in a workspace.
+
+        Returns a dict with an ``agents`` list, each entry containing
+        ``address``, ``display_name``, ``status``, and ``created_at``.
+        """
+        params: dict[str, str] = {"org_id": org_id, "workspace_id": workspace_id}
+        if limit is not None:
+            params["limit"] = str(limit)
+        return self._request_json(
+            "GET",
+            "/v1/agents",
+            params=params,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
+    def get_agent(self, address: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        """Get agent address details by full ``agent://org/workspace/name`` address."""
+        if not isinstance(address, str) or not address.strip():
+            raise ValueError("address must be a non-empty string")
+        path_part = address.strip()
+        if path_part.startswith("agent://"):
+            path_part = path_part[len("agent://"):]
+        return self._request_json(
+            "GET",
+            f"/v1/agents/{path_part}",
+            trace_id=trace_id,
+            retryable=True,
+        )
+
     def revoke_service_account_key(
         self,
         service_account_id: str,
