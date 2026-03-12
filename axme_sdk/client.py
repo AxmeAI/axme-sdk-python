@@ -122,18 +122,18 @@ class AxmeClient:
         idempotency_key: str | None = None,
         trace_id: str | None = None,
     ) -> dict[str, Any]:
-        """Submit a ScenarioBundle (scenario_bundle.v1.json) to POST /v1/scenarios/bundle.
+        """Submit a ScenarioBundle to POST /v1/scenarios/apply.
 
         The server provisions missing agents, compiles the workflow, and creates the
         intent in one atomic operation.  Returns the full bundle response including
-        ``intent_id``, ``status``, ``pending_with``, and resolved ``agents``.
+        ``intent_id``, ``compile_id``, ``agents_provisioned``.
         """
         payload = dict(bundle)
         if idempotency_key is not None:
             payload.setdefault("idempotency_key", idempotency_key)
         return self._request_json(
             "POST",
-            "/v1/scenarios/bundle",
+            "/v1/scenarios/apply",
             json_body=payload,
             idempotency_key=idempotency_key,
             trace_id=trace_id,
