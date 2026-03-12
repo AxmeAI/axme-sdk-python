@@ -115,6 +115,49 @@ class AxmeClient:
             raise ValueError("create_intent response does not include string intent_id")
         return intent_id
 
+    def apply_scenario(
+        self,
+        bundle: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Submit a ScenarioBundle (scenario_bundle.v1.json) to POST /v1/scenarios/bundle.
+
+        The server provisions missing agents, compiles the workflow, and creates the
+        intent in one atomic operation.  Returns the full bundle response including
+        ``intent_id``, ``status``, ``pending_with``, and resolved ``agents``.
+        """
+        payload = dict(bundle)
+        if idempotency_key is not None:
+            payload.setdefault("idempotency_key", idempotency_key)
+        return self._request_json(
+            "POST",
+            "/v1/scenarios/bundle",
+            json_body=payload,
+            idempotency_key=idempotency_key,
+            trace_id=trace_id,
+            retryable=idempotency_key is not None,
+        )
+
+    def validate_scenario(
+        self,
+        bundle: dict[str, Any],
+        *,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Dry-run validate a ScenarioBundle without creating any resources.
+
+        Returns a list of validation errors (empty list means valid).
+        """
+        return self._request_json(
+            "POST",
+            "/v1/scenarios/validate",
+            json_body=bundle,
+            trace_id=trace_id,
+            retryable=True,
+        )
+
     def list_intent_events(
         self,
         intent_id: str,
