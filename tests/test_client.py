@@ -1686,3 +1686,213 @@ def test_mcp_call_tool_retries_http_failure_when_retryable() -> None:
     )
     assert result["ok"] is True
     assert attempts == 2
+
+
+# ---------------------------------------------------------------------------
+# listen(address) — agent intent stream
+# ---------------------------------------------------------------------------
+
+
+def _sse(events: list[tuple[str, dict]]) -> str:
+    """Build a minimal SSE payload from (event_type, payload) pairs."""
+    parts = []
+    for event_type, payload in events:
+        parts.append(f"event: {event_type}\ndata: {json.dumps(payload)}\n\n")
+    return "".join(parts)
+
+
+def test_listen_yields_intent_events_from_sse() -> None:
+    address = "agent://acme/main/router"
+    intent1 = {
+        "intent_id": "aaaa-1",
+        "seq": 1,
+        "event_type": "intent.submitted",
+        "status": "SUBMITTED",
+        "at": "2026-03-01T00:00:00Z",
+    }
+    intent2 = {
+        "intent_id": "bbbb-2",
+        "seq": 2,
+        "event_type": "intent.submitted",
+        "status": "SUBMITTED",
+        "at": "2026-03-01T00:00:01Z",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/agents/acme/main/router/intents/stream"
+        # Deliver two intents then keepalive to end the stream segment
+        return httpx.Response(
+            200,
+            text=_sse([("intent.submitted", intent1), ("intent.submitted", intent2)])
+            + "event: stream.timeout\ndata: {}\n\n",
+        )
+
+    client = _client(handler)
+    gen = client.listen(address)
+    received = [next(gen), next(gen)]
+    assert received[0]["intent_id"] == "aaaa-1"
+    assert received[1]["intent_id"] == "bbbb-2"
+
+
+def test_listen_strips_agent_scheme_from_url() -> None:
+    """address with and without 'agent://' prefix must hit the same URL path."""
+    paths_seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths_seen.append(request.url.path)
+        # Return one intent then stream.timeout to end the stream cleanly
+        intent = {"intent_id": "x1", "seq": 1, "event_type": "intent.submitted", "status": "SUBMITTED", "at": "2026-03-01T00:00:00Z"}
+        return httpx.Response(200, text=_sse([("intent.submitted", intent)]) + "event: stream.timeout\ndata: {}\n\n")
+
+    client = _client(handler)
+    # with scheme — consume one event
+    next(client.listen("agent://org/ws/bot"))
+    # without scheme — consume one event
+    next(client.listen("org/ws/bot"))
+    assert paths_seen[0] == paths_seen[1] == "/v1/agents/org/ws/bot/intents/stream"
+
+
+def test_listen_since_cursor_forwarded() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params.get("since") == "42"
+        intent = {"intent_id": "x1", "seq": 43, "event_type": "intent.submitted", "status": "SUBMITTED", "at": "2026-03-01T00:00:00Z"}
+        return httpx.Response(200, text=_sse([("intent.submitted", intent)]) + "event: stream.timeout\ndata: {}\n\n")
+
+    client = _client(handler)
+    result = next(client.listen("org/ws/bot", since=42))
+    assert result["intent_id"] == "x1"
+
+
+def test_listen_reconnects_on_stream_timeout_keepalive() -> None:
+    """A stream.timeout SSE event causes the client to reconnect."""
+    calls: list[int] = []
+    intent = {
+        "intent_id": "cc-3",
+        "seq": 5,
+        "event_type": "intent.submitted",
+        "status": "SUBMITTED",
+        "at": "2026-03-01T00:00:00Z",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        call_no = len(calls) + 1
+        calls.append(call_no)
+        if call_no == 1:
+            # first response: keepalive only → reconnect
+            return httpx.Response(
+                200,
+                text="event: stream.timeout\ndata: {}\n\n",
+            )
+        # second response: real intent + keepalive → stops reconnect
+        return httpx.Response(
+            200,
+            text=_sse([("intent.submitted", intent)]) + "event: stream.timeout\ndata: {}\n\n",
+        )
+
+    client = _client(handler)
+    # consume one event (which only arrives on the second request)
+    received = next(client.listen("org/ws/bot", wait_seconds=1))
+    assert received["intent_id"] == "cc-3"
+    assert len(calls) >= 2
+
+
+def test_listen_advances_since_cursor_across_reconnects() -> None:
+    """After receiving seq=7 the next request should use since=7."""
+    requests_seen: list[str] = []
+
+    intent = {
+        "intent_id": "dd-4",
+        "seq": 7,
+        "event_type": "intent.submitted",
+        "status": "SUBMITTED",
+        "at": "2026-03-01T00:00:00Z",
+    }
+    intent2 = {
+        "intent_id": "ee-5",
+        "seq": 8,
+        "event_type": "intent.submitted",
+        "status": "SUBMITTED",
+        "at": "2026-03-01T00:00:01Z",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        since_param = request.url.params.get("since", "?")
+        requests_seen.append(since_param)
+        call_no = len(requests_seen)
+        if call_no == 1:
+            # first call: deliver intent with seq=7 + keepalive
+            return httpx.Response(
+                200,
+                text=_sse([("intent.submitted", intent)]) + "event: stream.timeout\ndata: {}\n\n",
+            )
+        # second call: deliver second intent so we can consume it
+        return httpx.Response(
+            200,
+            text=_sse([("intent.submitted", intent2)]) + "event: stream.timeout\ndata: {}\n\n",
+        )
+
+    client = _client(handler)
+    gen = client.listen("org/ws/bot")
+    e1 = next(gen)
+    assert e1["seq"] == 7
+    e2 = next(gen)
+    assert e2["seq"] == 8
+    # the reconnect should use since=7
+    assert requests_seen[0] == "0"
+    assert requests_seen[1] == "7"
+
+
+def test_listen_raises_on_empty_address() -> None:
+    client = _client(lambda r: httpx.Response(200, text=""))
+    with pytest.raises(ValueError, match="address must be a non-empty string"):
+        list(client.listen(""))
+
+
+def test_listen_raises_on_negative_since() -> None:
+    client = _client(lambda r: httpx.Response(200, text=""))
+    with pytest.raises(ValueError, match="since must be >= 0"):
+        list(client.listen("org/ws/bot", since=-1))
+
+
+def test_listen_raises_on_invalid_wait_seconds() -> None:
+    client = _client(lambda r: httpx.Response(200, text=""))
+    with pytest.raises(ValueError, match="wait_seconds must be >= 1"):
+        list(client.listen("org/ws/bot", wait_seconds=0))
+
+
+def test_listen_raises_timeout_error_when_deadline_exceeded() -> None:
+    import time as _time
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        # Simulate a short server delay so we don't spin too tight
+        _time.sleep(0.05)
+        return httpx.Response(200, text="event: stream.timeout\ndata: {}\n\n")
+
+    client = _client(handler)
+    with pytest.raises(TimeoutError):
+        list(client.listen("org/ws/bot", timeout_seconds=0.12))
+
+
+def test_listen_requires_api_key() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if not request.headers.get("x-api-key"):
+            return httpx.Response(401, json={"error": "Unauthorized"})
+        intent = {"intent_id": "x1", "seq": 1, "event_type": "intent.submitted", "status": "SUBMITTED", "at": "2026-03-01T00:00:00Z"}
+        return httpx.Response(200, text=_sse([("intent.submitted", intent)]) + "event: stream.timeout\ndata: {}\n\n")
+
+    client = _client(handler, api_key="my-api-key")
+    # should succeed — consume one event without raising auth error
+    result = next(client.listen("org/ws/bot"))
+    assert result["intent_id"] == "x1"
+
+
+def test_listen_raises_auth_error_on_401() -> None:
+    from axme.exceptions import AxmeAuthError
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": "Unauthorized"})
+
+    client = _client(handler)
+    with pytest.raises(AxmeAuthError):
+        list(client.listen("org/ws/bot"))
