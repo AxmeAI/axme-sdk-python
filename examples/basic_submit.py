@@ -15,8 +15,7 @@ def main() -> None:
     created = client.create_intent(
         {
             "intent_type": "intent.demo.v1",
-            "from_agent": "agent://basic/python/source",
-            "to_agent": "agent://basic/python/target",
+            "to_agent": "agent://acme-corp/production/target",
             "payload": {"task": "hello-from-python"},
         },
         correlation_id=correlation_id,
