@@ -1670,11 +1670,18 @@ class AxmeClient:
         if normalized_trace_id is not None:
             headers = {"X-Trace-Id": normalized_trace_id}
 
+        stream_timeout = httpx.Timeout(
+            connect=10.0,
+            read=float(wait_seconds) + 15.0,
+            write=10.0,
+            pool=10.0,
+        )
         with self._http.stream(
             "GET",
             f"/v1/intents/{intent_id}/events/stream",
             params={"since": str(since), "wait_seconds": str(wait_seconds)},
             headers=headers,
+            timeout=stream_timeout,
         ) as response:
             if response.status_code >= 400:
                 self._raise_http_error(response)
@@ -1717,11 +1724,20 @@ class AxmeClient:
         if normalized_trace_id is not None:
             headers = {"X-Trace-Id": normalized_trace_id}
 
+        # SSE streams need a longer read timeout than regular API calls
+        # (server holds connection open for wait_seconds + processing time)
+        stream_timeout = httpx.Timeout(
+            connect=10.0,
+            read=float(wait_seconds) + 15.0,
+            write=10.0,
+            pool=10.0,
+        )
         with self._http.stream(
             "GET",
             f"/v1/agents/{path_part}/intents/stream",
             params={"since": str(since), "wait_seconds": str(wait_seconds)},
             headers=headers,
+            timeout=stream_timeout,
         ) as response:
             if response.status_code >= 400:
                 self._raise_http_error(response)
