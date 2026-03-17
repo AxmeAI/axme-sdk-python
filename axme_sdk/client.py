@@ -832,6 +832,7 @@ class AxmeClient:
         since: int = 0,
         wait_seconds: int = 15,
         timeout_seconds: float | None = None,
+        status: str | None = None,
         trace_id: str | None = None,
     ) -> Iterator[dict[str, Any]]:
         """Stream incoming intents for an agent address via SSE.
@@ -842,6 +843,10 @@ class AxmeClient:
         new intents within ``wait_seconds``, at which point the client
         automatically reconnects until ``timeout_seconds`` elapses (or forever if
         ``timeout_seconds`` is ``None``).
+
+        By default the server excludes terminal statuses (COMPLETED, FAILED,
+        CANCELED, TIMED_OUT) so agents only receive actionable intents.  Pass an
+        explicit ``status`` filter to override this behaviour.
 
         Args:
             address: Full ``agent://org/workspace/name`` or bare ``org/workspace/name``
@@ -854,6 +859,9 @@ class AxmeClient:
                 new intents.
             timeout_seconds: Optional wall-clock timeout after which the method
                 raises ``TimeoutError``.  ``None`` means listen indefinitely.
+            status: Comma-separated status filter passed to the server (e.g.
+                ``"CREATED,DELIVERED"``).  When omitted the server applies its
+                default filter (exclude terminal statuses).
             trace_id: Optional trace ID forwarded as ``X-Trace-Id``.
 
         Yields:
@@ -895,6 +903,7 @@ class AxmeClient:
                 path_part=path_part,
                 since=next_since,
                 wait_seconds=stream_wait_seconds,
+                status=status,
                 trace_id=trace_id,
             ):
                 seq = event.get("seq")
@@ -1717,6 +1726,7 @@ class AxmeClient:
         path_part: str,
         since: int,
         wait_seconds: int,
+        status: str | None = None,
         trace_id: str | None,
     ) -> Iterator[dict[str, Any]]:
         headers: dict[str, str] | None = None
@@ -1732,10 +1742,13 @@ class AxmeClient:
             write=10.0,
             pool=10.0,
         )
+        params: dict[str, str] = {"since": str(since), "wait_seconds": str(wait_seconds)}
+        if status:
+            params["status"] = status
         with self._http.stream(
             "GET",
             f"/v1/agents/{path_part}/intents/stream",
-            params={"since": str(since), "wait_seconds": str(wait_seconds)},
+            params=params,
             headers=headers,
             timeout=stream_timeout,
         ) as response:
