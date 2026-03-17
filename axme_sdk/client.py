@@ -1905,6 +1905,12 @@ class AxmeClient:
     def _raise_http_error(self, response: httpx.Response) -> None:
         body: Any | None
         body = None
+        # response.read() is required when called inside a streaming context —
+        # without it, accessing .text or .json() raises httpx.ResponseNotRead.
+        try:
+            response.read()
+        except Exception:
+            pass
         message = response.text
         try:
             body = response.json()
