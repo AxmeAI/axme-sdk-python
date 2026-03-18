@@ -3,7 +3,7 @@
 **Official Python SDK for the AXME platform.** Send and manage intents, observe lifecycle events, work with inbox and approvals, and access the full enterprise admin surface — all from idiomatic Python.
 
 > **Alpha** · API surface is stabilizing. Not recommended for production workloads yet.  
-> Alpha access: https://cloud.axme.ai/alpha · Contact and suggestions: [hello@axme.ai](mailto:hello@axme.ai)
+> **Alpha** — install CLI, log in, run your first example in under 5 minutes. [Quick Start](https://cloud.axme.ai/alpha/cli) · [hello@axme.ai](mailto:hello@axme.ai)
 
 ---
 
@@ -303,6 +303,6 @@ axme-sdk-python/
 ## Contributing & Contact
 
 - Bug reports and feature requests: open an issue in this repository
-- Alpha access: https://cloud.axme.ai/alpha · Contact and suggestions: [hello@axme.ai](mailto:hello@axme.ai)
+- Quick Start: https://cloud.axme.ai/alpha/cli · Contact: [hello@axme.ai](mailto:hello@axme.ai)
 - Security disclosures: see [SECURITY.md](SECURITY.md)
 - Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
