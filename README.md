@@ -181,7 +181,56 @@ for event in client.observe(intent["intent_id"]):
 
 ---
 
-## Approvals and Human-in-the-Loop
+## Human-in-the-Loop (8 Task Types)
+
+AXME supports 8 human task types. Each pauses the workflow and notifies a human via email with a link to a web task page.
+
+| Task type | Use case | Default outcomes |
+|-----------|----------|-----------------|
+| `approval` | Approve or reject a request | approved, rejected |
+| `confirmation` | Confirm a real-world action completed | confirmed, denied |
+| `review` | Review content with multiple outcomes | approved, changes_requested, rejected |
+| `assignment` | Assign work to a person or team | assigned, declined |
+| `form` | Collect structured data via form fields | submitted |
+| `clarification` | Request clarification (comment required) | provided, declined |
+| `manual_action` | Physical task completion (evidence required) | completed, failed |
+| `override` | Override a policy gate (comment required) | override_approved, rejected |
+
+```python
+# Create an intent with a human task step
+result = client.create_intent(
+    intent_type="intent.budget.approval.v1",
+    to_agent="agent://agent_core",
+    payload={"amount": 32000, "department": "engineering"},
+    human_task={
+        "title": "Approve Q3 budget",
+        "description": "Review and approve the Q3 infrastructure budget.",
+        "task_type": "approval",
+        "notify_email": "approver@example.com",
+        "allowed_outcomes": ["approved", "rejected"],
+    },
+)
+```
+
+Task types with forms use `form_schema` to define required fields:
+
+```python
+human_task={
+    "title": "Assign incident commander",
+    "task_type": "assignment",
+    "notify_email": "oncall@example.com",
+    "form_schema": {
+        "type": "object",
+        "required": ["assignee"],
+        "properties": {
+            "assignee": {"type": "string", "title": "Commander name"},
+            "priority": {"type": "string", "enum": ["P1", "P2", "P3"]},
+        },
+    },
+}
+```
+
+### Programmatic approvals (inbox API)
 
 ```python
 # Fetch pending approvals for an agent
@@ -191,7 +240,6 @@ for item in pending.get("items", []):
     thread_id = item.get("thread_id")
     if not thread_id:
         continue
-    # Approve the inbox thread with a note
     client.approve_inbox_thread(
         thread_id,
         {"note": "LGTM"},
