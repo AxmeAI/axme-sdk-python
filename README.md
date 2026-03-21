@@ -269,6 +269,34 @@ client.update_intent_controls(
 
 ---
 
+## Cross-Org Delivery Control
+
+Organizations can control which external orgs may send intents to their agents. Three levels of control:
+
+1. **Org receive policy** — org-wide default (`open`, `allowlist`, `closed`)
+2. **Agent receive override** — per-agent exceptions to the org policy
+
+```python
+# Get org receive policy
+policy = client.get("/v1/organizations/{org_id}/receive-policy")
+
+# Set org receive policy to allowlist mode
+client.put("/v1/organizations/{org_id}/receive-policy", json={
+    "mode": "allowlist",
+    "allowlist": ["org_id_of_trusted_partner"]
+})
+
+# Allow a specific agent to receive from any org (override)
+client.put("/v1/agents/{address}/receive-override", json={
+    "override_type": "allow",
+    "source_org_id": "org_id_of_partner"
+})
+```
+
+See [`cross-org-receive-policy.md`](https://github.com/AxmeAI/axme-docs/blob/main/docs/cross-org-receive-policy.md) for the full decision flow.
+
+---
+
 ## SDK Diagrams
 
 The SDK docs folder contains diagrams for the API patterns used by this client:
