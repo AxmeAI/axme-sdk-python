@@ -1886,7 +1886,6 @@ def test_listen_requires_api_key() -> None:
     result = next(client.listen("org/ws/bot"))
     assert result["intent_id"] == "x1"
 
-
 def test_listen_raises_auth_error_on_401() -> None:
     from axme.exceptions import AxmeAuthError
 
@@ -1896,3 +1895,14 @@ def test_listen_raises_auth_error_on_401() -> None:
     client = _client(handler)
     with pytest.raises(AxmeAuthError):
         list(client.listen("org/ws/bot"))
+        
+def test_401_error_message_contains_hint_and_server_message():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"message": "API key expired"})
+    client = _client(handler)
+    with pytest.raises(AxmeAuthError) as exc_info:
+        client.health()
+    msg = str(exc_info.value)
+    assert "API key invalid" in msg
+    assert "API key expired" in msg
+        
