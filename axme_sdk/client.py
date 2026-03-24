@@ -1939,12 +1939,12 @@ class AxmeClient:
         if status_code == 401:
             raise AxmeAuthError(
                 status_code,
-                "Invalid API key. Please check your AXME_API_KEY.",
+                f"API key invalid - check AXME_API_KEY or run `axme login`. Server: {message}"
                 **kwargs)
         if status_code == 403:
             raise AxmeAuthError(
                 status_code,
-                "Access denied. You do not have permission to perform this action.",
+                f"Access denied. Check permissions. Server: {message}"
                 **kwargs)
         if status_code in (400, 409, 413, 422):
             raise AxmeValidationError(status_code, message, **kwargs)
