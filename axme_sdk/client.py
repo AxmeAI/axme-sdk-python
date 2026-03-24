@@ -1652,6 +1652,17 @@ class AxmeClient:
                     json=json_body,
                     headers=headers,
                 )
+                if response.status_code == 401:
+                    raise AxmeAuthError(
+                        401,
+                        "API key invalid — check AXME_API_KEY or run `axme login`",
+            )
+
+                if response.status_code == 403:
+                    raise AxmeAuthError(
+                        403,
+                        "Access denied — insufficient permissions",
+            )
             except (httpx.TimeoutException, httpx.TransportError):
                 if attempt_idx >= attempts - 1:
                     raise
