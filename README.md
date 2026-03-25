@@ -373,6 +373,8 @@ axme-sdk-python/
 | [axme-examples](https://github.com/AxmeAI/axme-examples) | Runnable examples using this SDK |
 | [axme-sdk-typescript](https://github.com/AxmeAI/axme-sdk-typescript) | TypeScript equivalent |
 | [axme-sdk-go](https://github.com/AxmeAI/axme-sdk-go) | Go equivalent |
+| [axme-sdk-java](https://github.com/AxmeAI/axme-sdk-java) | Java equivalent |
+| [axme-sdk-dotnet](https://github.com/AxmeAI/axme-sdk-dotnet) | .NET equivalent |
 
 ---
 
