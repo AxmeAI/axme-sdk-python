@@ -1896,3 +1896,218 @@ def test_listen_raises_auth_error_on_401() -> None:
     client = _client(handler)
     with pytest.raises(AxmeAuthError):
         list(client.listen("org/ws/bot"))
+
+
+# ------------------------------------------------------------------
+# Session API tests
+# ------------------------------------------------------------------
+
+
+def test_create_session() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/sessions"
+        body = json.loads(request.content)
+        assert body["type"] == "task"
+        assert body["metadata"]["agent"] == "claude-code"
+        return httpx.Response(200, json={
+            "ok": True,
+            "session_id": "s-123",
+            "status": "ACTIVE",
+            "type": "task",
+            "created_at": "2026-03-26T12:00:00Z",
+        })
+
+    client = _client(handler)
+    result = client.create_session(type="task", metadata={"agent": "claude-code"})
+    assert result["ok"] is True
+    assert result["session_id"] == "s-123"
+    assert result["status"] == "ACTIVE"
+
+
+def test_create_session_with_depends_on() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["depends_on"] == ["s-dep-1", "s-dep-2"]
+        return httpx.Response(200, json={"ok": True, "session_id": "s-456", "status": "PAUSED", "type": "task", "created_at": "2026-03-26T12:00:00Z"})
+
+    client = _client(handler)
+    result = client.create_session(depends_on=["s-dep-1", "s-dep-2"])
+    assert result["status"] == "PAUSED"
+
+
+def test_get_session() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/sessions/s-123"
+        return httpx.Response(200, json={
+            "ok": True,
+            "session": {
+                "session_id": "s-123",
+                "type": "task",
+                "status": "ACTIVE",
+                "metadata": {"agent": "claude-code"},
+            },
+        })
+
+    client = _client(handler)
+    result = client.get_session("s-123")
+    assert result["session"]["session_id"] == "s-123"
+
+
+def test_list_sessions() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/sessions"
+        assert "status=ACTIVE" in str(request.url)
+        return httpx.Response(200, json={"ok": True, "sessions": [{"session_id": "s-1"}, {"session_id": "s-2"}]})
+
+    client = _client(handler)
+    result = client.list_sessions(status="ACTIVE")
+    assert len(result["sessions"]) == 2
+
+
+def test_post_session_message() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert "/messages" in request.url.path
+        body = json.loads(request.content)
+        assert body["role"] == "agent"
+        assert body["content"] == "Reading file..."
+        return httpx.Response(200, json={"ok": True, "message_id": "m-1", "seq": 1, "created_at": "2026-03-26T12:00:00Z"})
+
+    client = _client(handler)
+    result = client.post_session_message("s-123", role="agent", content="Reading file...")
+    assert result["ok"] is True
+    assert result["seq"] == 1
+
+
+def test_post_session_message_structured_content() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["content_type"] == "tool_use"
+        assert body["content"]["tool"] == "Read"
+        return httpx.Response(200, json={"ok": True, "message_id": "m-2", "seq": 2, "created_at": "2026-03-26T12:00:00Z"})
+
+    client = _client(handler)
+    result = client.post_session_message(
+        "s-123", role="agent", content_type="tool_use",
+        content={"tool": "Read", "input": {"path": "/tmp/foo.py"}},
+    )
+    assert result["ok"] is True
+
+
+def test_list_session_messages() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert "/messages" in request.url.path
+        return httpx.Response(200, json={"ok": True, "messages": [
+            {"message_id": "m-1", "seq": 1, "role": "agent", "content": "Hello"},
+        ]})
+
+    client = _client(handler)
+    result = client.list_session_messages("s-123")
+    assert len(result["messages"]) == 1
+
+
+def test_list_session_messages_with_since() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "since=5" in str(request.url)
+        return httpx.Response(200, json={"ok": True, "messages": []})
+
+    client = _client(handler)
+    result = client.list_session_messages("s-123", since=5)
+    assert result["messages"] == []
+
+
+def test_get_session_feed() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/sessions/s-123/feed"
+        return httpx.Response(200, json={"ok": True, "feed": [
+            {"type": "message", "role": "agent", "content": "Working..."},
+            {"type": "intent", "intent_id": "i-1", "status": "WAITING"},
+        ]})
+
+    client = _client(handler)
+    result = client.get_session_feed("s-123")
+    assert len(result["feed"]) == 2
+    assert result["feed"][0]["type"] == "message"
+    assert result["feed"][1]["type"] == "intent"
+
+
+def test_complete_session() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/v1/sessions/s-123/complete"
+        body = json.loads(request.content)
+        assert body["result"]["pr_url"] == "https://github.com/org/repo/pull/42"
+        return httpx.Response(200, json={"ok": True, "session_id": "s-123", "status": "COMPLETED"})
+
+    client = _client(handler)
+    result = client.complete_session("s-123", result={"pr_url": "https://github.com/org/repo/pull/42"})
+    assert result["status"] == "COMPLETED"
+
+
+def test_complete_session_no_result() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert "result" not in body
+        return httpx.Response(200, json={"ok": True, "session_id": "s-123", "status": "COMPLETED"})
+
+    client = _client(handler)
+    result = client.complete_session("s-123")
+    assert result["ok"] is True
+
+
+def test_listen_session_stream() -> None:
+    sse_body = (
+        "event: session.message\n"
+        'data: {"message_id": "m-1", "seq": 1, "role": "agent", "content": "Working..."}\n'
+        "\n"
+        "event: session.completed\n"
+        'data: {"session_id": "s-123", "status": "COMPLETED"}\n'
+        "\n"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/feed/stream" in request.url.path
+        return httpx.Response(200, text=sse_body, headers={"content-type": "text/event-stream"})
+
+    client = _client(handler)
+    events = list(client.listen_session("s-123", wait_seconds=2, timeout_seconds=5))
+    assert len(events) == 2
+    assert events[0]["type"] == "session.message"
+    assert events[0]["content"] == "Working..."
+    assert events[1]["type"] == "session.completed"
+
+
+def test_listen_session_reconnects_on_timeout() -> None:
+    call_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            sse_body = (
+                "event: session.message\n"
+                'data: {"message_id": "m-1", "seq": 1, "role": "agent", "content": "First"}\n'
+                "\n"
+                "event: stream.timeout\n"
+                'data: {"ok": true, "last_seq": 1}\n'
+                "\n"
+            )
+            return httpx.Response(200, text=sse_body, headers={"content-type": "text/event-stream"})
+        else:
+            sse_body = (
+                "event: session.completed\n"
+                'data: {"session_id": "s-123", "status": "COMPLETED"}\n'
+                "\n"
+            )
+            return httpx.Response(200, text=sse_body, headers={"content-type": "text/event-stream"})
+
+    client = _client(handler)
+    events = list(client.listen_session("s-123", wait_seconds=1, poll_interval_seconds=0.01, timeout_seconds=10))
+    assert len(events) == 2
+    assert events[0]["content"] == "First"
+    assert events[1]["type"] == "session.completed"
+    assert call_count == 2
