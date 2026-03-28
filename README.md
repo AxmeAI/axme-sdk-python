@@ -14,7 +14,7 @@
 pip install axme
 ```
 
-Requires Python 3.9+.
+Requires Python 3.11+.
 
 ---
 
