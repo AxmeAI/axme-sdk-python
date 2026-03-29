@@ -56,8 +56,19 @@ class AxmeClient:
             headers=self._default_headers(),
         )
         self._mcp_tool_schemas: dict[str, dict[str, Any]] = {}
+        self._mesh: "MeshClient | None" = None
+
+    @property
+    def mesh(self) -> "MeshClient":
+        """Access Agent Mesh operations (heartbeat, health, kill switch)."""
+        if self._mesh is None:
+            from .mesh import MeshClient
+            self._mesh = MeshClient(self)
+        return self._mesh
 
     def close(self) -> None:
+        if self._mesh is not None:
+            self._mesh.stop_heartbeat()
         if self._owns_http_client:
             self._http.close()
 

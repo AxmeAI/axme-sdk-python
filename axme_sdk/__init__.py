@@ -1,4 +1,5 @@
 from .client import AxmeClient, AxmeClientConfig
+from .mesh import MeshClient
 from .exceptions import (
     AxmeAuthError,
     AxmeError,
@@ -11,6 +12,7 @@ from .exceptions import (
 __all__ = [
     "AxmeClient",
     "AxmeClientConfig",
+    "MeshClient",
     "AxmeAuthError",
     "AxmeError",
     "AxmeHttpError",
