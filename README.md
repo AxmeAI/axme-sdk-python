@@ -102,6 +102,8 @@ client.mesh.resume(address_id="addr_...")
 
 Set action policies (allowlist/denylist intent types) and cost policies (intents/day, $/day limits) per agent via dashboard or API. [Agent Mesh overview](https://github.com/AxmeAI/axme#agent-mesh---see-and-control-your-agents).
 
+Open the live dashboard at [mesh.axme.ai](https://mesh.axme.ai) or run `axme mesh dashboard` from the CLI.
+
 ---
 
 ## Examples
