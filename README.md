@@ -81,6 +81,31 @@ for event in client.observe(intent["intent_id"]):
 
 ---
 
+## Agent Mesh - Monitor and Govern
+
+```python
+# Start heartbeat - agent appears in dashboard with live health
+client.mesh.start_heartbeat()  # background thread, every 30s
+
+# Report metrics after each task
+client.mesh.report_metric(success=True, latency_ms=230, cost_usd=0.02)
+
+# List all agents with health status
+agents = client.mesh.list_agents()
+
+# Kill a misbehaving agent - blocks all intents instantly
+client.mesh.kill(address_id="addr_...")
+
+# Resume it
+client.mesh.resume(address_id="addr_...")
+```
+
+Set action policies (allowlist/denylist intent types) and cost policies (intents/day, $/day limits) per agent via dashboard or API. [Agent Mesh overview](https://github.com/AxmeAI/axme#agent-mesh---see-and-control-your-agents).
+
+Open the live dashboard at [mesh.axme.ai](https://mesh.axme.ai) or run `axme mesh dashboard` from the CLI.
+
+---
+
 ## Examples
 
 ```bash
