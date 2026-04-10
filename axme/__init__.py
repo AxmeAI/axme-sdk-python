@@ -1,4 +1,4 @@
-from axme_sdk import AxmeClient, AxmeClientConfig
+from axme_sdk import __version__, AxmeClient, AxmeClientConfig
 from axme_sdk.exceptions import (
     AxmeAuthError,
     AxmeError,
@@ -9,6 +9,7 @@ from axme_sdk.exceptions import (
 )
 
 __all__ = [
+    "__version__",
     "AxmeClient",
     "AxmeClientConfig",
     "AxmeAuthError",
