@@ -1885,9 +1885,11 @@ class AxmeClient:
         observer(event)
 
     def _default_headers(self) -> dict[str, str]:
+        from . import __version__ as _sdk_version
         headers = {
             "x-api-key": self._config.api_key,
             "Content-Type": "application/json",
+            "X-Axme-Client": f"axme-sdk-python/{_sdk_version}",
         }
         if self._config.actor_token:
             headers["Authorization"] = f"Bearer {self._config.actor_token}"

@@ -32,9 +32,11 @@ def _client(
         retry_backoff_seconds=retry_backoff_seconds,
         auto_trace_id=auto_trace_id,
     )
+    from axme import __version__ as _sdk_version
     default_headers = {
         "x-api-key": cfg.api_key,
         "Content-Type": "application/json",
+        "X-Axme-Client": f"axme-sdk-python/{_sdk_version}",
     }
     if cfg.actor_token:
         default_headers["Authorization"] = f"Bearer {cfg.actor_token}"
@@ -101,6 +103,19 @@ def test_health_propagates_trace_id_header() -> None:
 
     client = _client(handler, auto_trace_id=False)
     assert client.health(trace_id="trace-123") == {"ok": True}
+
+
+def test_health_sends_x_axme_client_header() -> None:
+    """Every outgoing request must carry X-Axme-Client: axme-sdk-python/<version>."""
+    from axme_sdk import __version__ as sdk_version
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        client_header = request.headers.get("x-axme-client", "")
+        assert client_header == f"axme-sdk-python/{sdk_version}", client_header
+        return httpx.Response(200, json={"ok": True})
+
+    client = _client(handler)
+    assert client.health() == {"ok": True}
 
 
 def test_health_includes_actor_token_authorization_when_configured() -> None:

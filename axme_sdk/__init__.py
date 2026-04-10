@@ -1,3 +1,5 @@
+__version__ = "0.2.0"
+
 from .client import AxmeClient, AxmeClientConfig
 from .mesh import MeshClient
 from .exceptions import (
@@ -10,6 +12,7 @@ from .exceptions import (
 )
 
 __all__ = [
+    "__version__",
     "AxmeClient",
     "AxmeClientConfig",
     "MeshClient",
