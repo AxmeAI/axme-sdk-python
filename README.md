@@ -138,4 +138,4 @@ pytest
 
 ---
 
-[hello@axme.ai](mailto:hello@axme.ai) · [Security](SECURITY.md) · [License](LICENSE)
+[contact@axme.ai](mailto:contact@axme.ai) · [Security](SECURITY.md) · [License](LICENSE)
